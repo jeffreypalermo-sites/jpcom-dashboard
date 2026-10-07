@@ -1,0 +1,114 @@
+# Release of the health dashboard (a static site; added by the demo-environment skill).
+# After a green Build of master, it turns that build's published site into a release candidate:
+#   - the zip <slug>-<deployable>.<version>.zip (the content of the published wwwroot folder, index.html at the root
+#     of the zip) in the Octopus built-in feed
+#   - a release <version> of the Octopus project <slug>-<deployable>; its lifecycle deploys it to the first environment
+# No registry and no Azure credentials: the zip is the whole site, and Octopus deploys it. The deployment writes
+# topology.json next to index.html; the zip carries the sample.
+# The version is the Build run's MAJOR.MINOR.run_number, the same number build.yml stamps into the dashboard.
+# Credentials: GitHub OIDC to Octopus only (environment "release").
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # The Octopus actions (push-package, create-release) look the space up by name, not by ID.
+  OCTOPUS_SPACE: ${{ vars.OCTOPUS_SPACE_NAME }}
+
+jobs:
+  # Only a Build run that published the site has something to release.
+  packages:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    outputs:
+      found: ${{ steps.find.outputs.found }}
+    steps:
+      - name: Find the build's site
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          count=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" \
+            --jq '[.artifacts[] | select(.name == "dashboard-site")] | length')
+          if [ "$count" -gt 0 ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+
+  release:
+    needs: packages
+    if: needs.packages.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workflow = Get-Content -LiteralPath .github/workflows/build.yml -Raw
+          $major = [regex]::Match($workflow, '(?m)^\s*MAJOR_VERSION:\s*(\d+)').Groups[1].Value
+          $minor = [regex]::Match($workflow, '(?m)^\s*MINOR_VERSION:\s*(\d+)').Groups[1].Value
+          if (-not $major -or -not $minor) { throw 'MAJOR_VERSION and MINOR_VERSION not found in build.yml' }
+          "version=$major.$minor.${{ github.event.workflow_run.run_number }}" >> $env:GITHUB_OUTPUT
+
+      - name: Download the build's site
+        uses: actions/download-artifact@v8
+        with:
+          name: dashboard-site
+          path: ./site
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Zip the site
+        shell: pwsh
+        env:
+          PACKAGE_ID: ${{ vars.SYSTEM_SLUG }}-${{ vars.DEPLOYABLE_NAME }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path -LiteralPath ./site/index.html)) { throw 'index.html not found at the root of the build artifact' }
+          New-Item -ItemType Directory -Path ./octopus-packages -Force | Out-Null
+          $target = "./octopus-packages/$env:PACKAGE_ID.$env:VERSION.zip"
+          # The content of the folder, not the folder: index.html is at the root of the zip.
+          # -Force: on Linux, wildcards and Get-ChildItem skip dot-folders otherwise.
+          Compress-Archive -Path (Get-ChildItem -LiteralPath ./site -Force).FullName -DestinationPath $target -CompressionLevel Optimal
+          "Site package: $([Math]::Round((Get-Item $target).Length / 1MB, 1)) MB" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Sign in to Octopus
+        uses: OctopusDeploy/login@v2
+        with:
+          server: ${{ vars.OCTOPUS_URL }}
+          service_account_id: ${{ vars.OCTOPUS_SERVICE_ACCOUNT_ID }}
+
+      - name: Push the site package
+        uses: OctopusDeploy/push-package-action@v3
+        with:
+          packages: octopus-packages/${{ vars.SYSTEM_SLUG }}-${{ vars.DEPLOYABLE_NAME }}.${{ steps.version.outputs.version }}.zip
+          overwrite_mode: IgnoreIfExists
+
+      - name: Create the release
+        uses: OctopusDeploy/create-release-action@v3
+        with:
+          project: ${{ vars.SYSTEM_SLUG }}-${{ vars.DEPLOYABLE_NAME }}
+          release_number: ${{ steps.version.outputs.version }}
+          package_version: ${{ steps.version.outputs.version }}
+          ignore_existing: true
+          release_notes: "Build ${{ github.event.workflow_run.html_url }} of ${{ github.event.workflow_run.head_sha }}"

@@ -1,0 +1,78 @@
+<article class="tile tile--@Target.State.ToString().ToLowerInvariant()" aria-labelledby="@HeadingId">
+    <header class="tile__header">
+        <h4 id="@HeadingId">@Title</h4>
+        <StateBadge State="Target.State" />
+    </header>
+
+    <p class="tile__chips">
+        <span class="chip">@Subtitle</span>
+        @if (IsExpected)
+        {
+            <span class="chip chip--serving" title="The first healthy node in priority order: primary, then standby">serves traffic</span>
+        }
+    </p>
+
+    <p class="tile__address">
+        <span class="tile__name">@ResourceName</span>
+        <a href="@Target.Url.AbsoluteUri" rel="noopener noreferrer">@Target.Url.Host</a>
+    </p>
+
+    <dl class="metrics">
+        <div>
+            <dt>HTTP status</dt>
+            <dd>@(Target.Last?.StatusCode?.ToString(CultureInfo.InvariantCulture) ?? None)</dd>
+        </div>
+        <div>
+            <dt>Latency</dt>
+            <dd>@(Target.Last?.LatencyMs is { } latency ? $"{latency} ms" : None)</dd>
+        </div>
+        <div>
+            <dt>Version</dt>
+            <dd>@(Target.Version ?? None)</dd>
+        </div>
+        <div>
+            <dt>Last check</dt>
+            <dd>
+                @if (Target.Last is { } last)
+                {
+                    <time datetime="@TimeText.Iso(last.CheckedAt)">@TimeText.Clock(last.CheckedAt, Zone)</time>
+                }
+                else
+                {
+                    @None
+                }
+            </dd>
+        </div>
+    </dl>
+
+    @if (Target.Last?.Detail is { } detail)
+    {
+        <p class="tile__detail">@detail</p>
+    }
+
+    <HistoryStrip History="Target.History" Zone="Zone" />
+</article>
+
+@code {
+    private const string None = "—";
+
+    [Parameter, EditorRequired]
+    public TargetStatus Target { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string HeadingId { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = default!;
+
+    /// <summary>True for the node the serving decision expects to serve the traffic.</summary>
+    [Parameter]
+    public bool IsExpected { get; set; }
+
+    private string Title => Target.Kind == TargetKind.FrontDoor ? "Front Door" : Target.Region ?? Target.Name;
+
+    /// <summary>The web app's name; for Front Door the endpoint's name, the first label of its host.</summary>
+    private string ResourceName => Target.Kind == TargetKind.FrontDoor ? Target.Url.Host.Split('.')[0] : Target.Name;
+
+    private string Subtitle => Target.Kind == TargetKind.FrontDoor ? "public address" : Target.Role ?? "node";
+}

@@ -1,0 +1,76 @@
+@{
+    var assessment = Deployable.Assess(out var expected);
+    var serving = assessment.State.ToString().ToLowerInvariant();
+    var disagrees = assessment.FrontDoor == FrontDoorAgreement.Disagrees;
+}
+<section class="deployable" aria-labelledby="@($"{IdPrefix}-title")">
+    <header class="deployable__header">
+        <h3 id="@($"{IdPrefix}-title")">@Deployable.Info.Name</h3>
+        <div class="serving serving--@serving @(disagrees ? "serving--disagrees" : null)">
+            <p class="serving__headline">
+                <svg class="serving__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                    @switch (assessment.State)
+                    {
+                        case ServingState.Primary:
+                            <path d="M3 8.5l3.2 3.2L13 4.6" />
+                            break;
+                        case ServingState.FailedOver:
+                            <path d="M2 5.5h11M10 2.5l3 3-3 3M14 10.5H3M6 7.5l-3 3 3 3" />
+                            break;
+                        case ServingState.Down:
+                            <path d="M4 4l8 8M12 4l-8 8" />
+                            break;
+                        default:
+                            <path d="M3.9 8h.2M7.9 8h.2M11.9 8h.2" />
+                            break;
+                    }
+                </svg>
+                <strong>@assessment.Headline</strong>
+            </p>
+            @if (assessment.FailoverDetail is { } detail)
+            {
+                <p class="serving__detail">@detail</p>
+            }
+            @if (assessment.FrontDoorText is { } frontDoor)
+            {
+                <p class="serving__frontdoor">
+                    @if (disagrees)
+                    {
+                        <StateIcon State="HealthState.Unhealthy" />
+                    }
+                    <span>@frontDoor</span>
+                </p>
+            }
+        </div>
+    </header>
+
+    @if (!Deployable.Targets.Any())
+    {
+        <p class="empty">This deployable has neither a Front Door endpoint nor a node in the topology.</p>
+    }
+    else
+    {
+        <div class="tiles">
+            @{
+                var index = 0;
+            }
+            @foreach (var target in Deployable.Targets)
+            {
+                var id = $"{IdPrefix}-tile-{index++}";
+                <TargetTile @key="target" Target="target" HeadingId="@id" Zone="Zone" IsExpected="ReferenceEquals(target, expected)" />
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public DeployableStatus Deployable { get; set; } = default!;
+
+    /// <summary>Prefix of the element ids of this section, unique on the page.</summary>
+    [Parameter, EditorRequired]
+    public string IdPrefix { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = default!;
+}

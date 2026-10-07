@@ -1,0 +1,321 @@
+@implements IAsyncDisposable
+@inject TopologyLoader Loader
+@inject NodeProber Prober
+@inject TimeProvider Time
+@inject IJSRuntime JS
+
+<PageTitle>@PageTitleText</PageTitle>
+
+<header class="page-header">
+    <div class="page-header__top">
+        <div class="page-header__title">
+            <p class="eyebrow">Health dashboard</p>
+            <h1>@(_monitor?.Topology.System.Name ?? "Health dashboard")</h1>
+        </div>
+        <div class="page-header__status">
+            @* Only the summary is announced: the tiles change on every check. *@
+            <p class="summary summary--@Summary.Level.ToString().ToLowerInvariant()" role="status" aria-live="polite">
+                <StateIcon State="SummaryState" />
+                <span>@SummaryText</span>
+            </p>
+            <p class="refresh">
+                <span class="polling polling--@PollingState.ToLowerInvariant()">@PollingState</span>
+                <span>
+                    Last refresh:
+                    @if (_monitor?.LastRefresh is { } refreshed)
+                    {
+                        <time datetime="@TimeText.Iso(refreshed)">@TimeText.Clock(refreshed, Zone)</time>
+                    }
+                    else
+                    {
+                        <span>not yet</span>
+                    }
+                </span>
+            </p>
+        </div>
+    </div>
+
+    <div class="controls" role="group" aria-label="Checks">
+        <button type="button" class="button" title="@PauseHelp" @onclick="TogglePause">
+            @(_poller.IsPaused ? "Resume" : "Pause")
+        </button>
+        <label class="field">
+            <span>Interval</span>
+            <select value="@IntervalSeconds" @onchange="OnIntervalChanged">
+                @foreach (var seconds in IntervalChoices)
+                {
+                    <option value="@seconds">@seconds s</option>
+                }
+            </select>
+        </label>
+        <label class="field">
+            <span>Probe</span>
+            <select value="@_probe" title="@ProbeHelp" aria-describedby="probe-help" @onchange="OnProbeChanged">
+                <option value="@ProbeKind.Health">Health check</option>
+                <option value="@ProbeKind.Liveness">Liveness</option>
+            </select>
+        </label>
+        <button type="button" class="button button--quiet" @onclick="CheckNow">Check now</button>
+        <button type="button" class="button button--quiet" disabled="@_loading" @onclick="ReloadTopologyAsync">Reload topology</button>
+    </div>
+    <p id="probe-help" class="help">@ProbeHelp</p>
+</header>
+
+<main>
+    @if (_monitor is { } monitor)
+    {
+        if (monitor.Environments.Count == 0)
+        {
+            <p class="empty">The topology has no environments.</p>
+        }
+
+        var environmentIndex = 0;
+        foreach (var environment in monitor.Environments)
+        {
+            var environmentId = $"env-{environmentIndex++}";
+            <section class="environment" aria-labelledby="@environmentId">
+                <header class="environment__header">
+                    <h2 id="@environmentId">@environment.Name</h2>
+                    @if (environment.Tier is { } tier)
+                    {
+                        <span class="chip">@tier</span>
+                    }
+                </header>
+                @if (environment.Deployables.Count == 0)
+                {
+                    <p class="empty">This environment has no deployables in the topology.</p>
+                }
+                @{
+                    var deployableIndex = 0;
+                }
+                @foreach (var deployable in environment.Deployables)
+                {
+                    <DeployableSection @key="deployable" Deployable="deployable" Zone="Zone"
+                                       IdPrefix="@($"{environmentId}-app-{deployableIndex++}")" />
+                }
+            </section>
+        }
+    }
+    else if (_errors is { } errors)
+    {
+        <section class="problem" role="alert" aria-labelledby="problem-title">
+            <h2 id="problem-title">The topology could not be read</h2>
+            <p>
+                The dashboard reads <code>@TopologyLoader.FileName</code> next to its <code>index.html</code>: the
+                environments, their Front Door endpoints and their nodes. The deployment writes that file.
+            </p>
+            <ul>
+                @foreach (var error in errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+            <button type="button" class="button" disabled="@_loading" @onclick="ReloadTopologyAsync">Reload topology</button>
+        </section>
+    }
+    else
+    {
+        <p class="empty" role="status">@LoadingText</p>
+    }
+</main>
+
+<footer class="page-footer">
+    <span>Dashboard @DashboardVersion</span>
+    @if (_monitor is { } loaded)
+    {
+        if (loaded.Topology.System.Slug is { Length: > 0 } slug)
+        {
+            <span>System @slug</span>
+        }
+
+        if (loaded.Topology.Generated is { } generated)
+        {
+            <span>Topology generated <time datetime="@TimeText.Iso(generated)">@TimeText.DateAndTime(generated, Zone)</time></span>
+        }
+    }
+    <span>Times are in your time zone</span>
+</footer>
+
+@code {
+    private const string LoadingText = "Loading the topology";
+
+    private const string ProbeHelp =
+        "Health check is the full check: it also connects to the database, which keeps a serverless database awake. "
+        + "Liveness only asks whether the web app is running and leaves the database alone.";
+
+    private const string PauseHelp =
+        "Pause stops the periodic checks. Checks also stop while this browser tab is hidden.";
+
+    private static readonly int[] IntervalChoices = [10, 30, 60];
+    private static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(30);
+    private static readonly string DashboardVersion = VersionText.OfAssembly(typeof(App).Assembly);
+
+    private readonly CancellationTokenSource _stopping = new();
+    private Poller _poller = default!;
+    private Task _polling = Task.CompletedTask;
+    private DashboardMonitor? _monitor;
+    private IReadOnlyList<string>? _errors;
+    private bool _loading;
+    private ProbeKind _probe = ProbeKind.Health;
+    private IJSObjectReference? _visibility;
+    private DotNetObjectReference<App>? _self;
+
+    private TimeZoneInfo Zone => Time.LocalTimeZone;
+
+    private int IntervalSeconds => (int)_poller.Interval.TotalSeconds;
+
+    private HealthSummary Summary => _monitor?.Summary ?? new HealthSummary(0, 0, 0);
+
+    private string SummaryText => _monitor is not null ? Summary.Text : _errors is not null ? "No topology" : LoadingText;
+
+    private HealthState SummaryState => Summary.Level switch
+    {
+        SummaryLevel.AllHealthy => HealthState.Healthy,
+        SummaryLevel.Problems => HealthState.Unhealthy,
+        _ when _errors is not null => HealthState.Unhealthy,
+        _ => HealthState.Pending,
+    };
+
+    private string PollingState => _poller.IsPaused ? "Paused" : _poller.IsVisible ? "Live" : "Hidden";
+
+    private string PageTitleText => _monitor is { } monitor
+        ? $"{Summary.Text} – {monitor.Topology.System.Name}"
+        : "Health dashboard";
+
+    /// <summary>Called by <c>js/visibility.js</c> when the browser tab is hidden or shown.</summary>
+    [JSInvokable]
+    public void OnVisibilityChanged(bool visible)
+    {
+        _poller.SetVisible(visible);
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stopping.CancelAsync();
+        if (_monitor is { } monitor)
+        {
+            monitor.Changed -= OnMonitorChanged;
+        }
+
+        if (_visibility is { } visibility)
+        {
+            try
+            {
+                await visibility.InvokeVoidAsync("unsubscribe");
+                await visibility.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The page is going away: there is no listener left to remove.
+            }
+        }
+
+        _self?.Dispose();
+        await _polling;
+        _stopping.Dispose();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _poller = new Poller(CheckAsync, Time, DefaultInterval);
+        await LoadTopologyAsync();
+        _polling = RunPollerAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _visibility = await JS.InvokeAsync<IJSObjectReference>("import", "./js/visibility.js");
+        _self = DotNetObjectReference.Create(this);
+        OnVisibilityChanged(await _visibility.InvokeAsync<bool>("subscribe", _self));
+    }
+
+    private Task CheckAsync(CancellationToken cancellationToken) =>
+        _monitor?.CheckAllAsync(_probe, cancellationToken) ?? Task.CompletedTask;
+
+    private async Task RunPollerAsync()
+    {
+        try
+        {
+            await _poller.RunAsync(_stopping.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // The dashboard is closing.
+        }
+        catch (Exception exception)
+        {
+            // Polling runs in the background: hand a failure to Blazor, which shows its error bar.
+            await DispatchExceptionAsync(exception);
+        }
+    }
+
+    private async Task LoadTopologyAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Loader.LoadAsync(_stopping.Token);
+            if (_monitor is { } previous)
+            {
+                previous.Changed -= OnMonitorChanged;
+            }
+
+            _monitor = result.Topology is { } topology ? new DashboardMonitor(topology, Prober, Time) : null;
+            _errors = result.Topology is null ? result.Errors : null;
+            if (_monitor is { } monitor)
+            {
+                monitor.Changed += OnMonitorChanged;
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ReloadTopologyAsync()
+    {
+        await LoadTopologyAsync();
+        _poller.CheckNow();
+    }
+
+    private void OnMonitorChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void TogglePause()
+    {
+        if (_poller.IsPaused)
+        {
+            _poller.Resume();
+        }
+        else
+        {
+            _poller.Pause();
+        }
+    }
+
+    private void CheckNow() => _poller.CheckNow();
+
+    private void OnIntervalChanged(ChangeEventArgs change)
+    {
+        if (int.TryParse(change.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds)
+            && IntervalChoices.Contains(seconds))
+        {
+            _poller.SetInterval(TimeSpan.FromSeconds(seconds));
+        }
+    }
+
+    private void OnProbeChanged(ChangeEventArgs change)
+    {
+        if (Enum.TryParse<ProbeKind>(change.Value?.ToString(), out var probe) && probe != _probe)
+        {
+            _probe = probe;
+            _poller.CheckNow();
+        }
+    }
+}

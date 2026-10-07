@@ -1,0 +1,688 @@
+/* The health dashboard's only style sheet. No framework, no web font: everything is served from the site itself.
+   Colours are roles (custom properties); the dark values replace the light ones when the viewer prefers dark.
+   A state is never colour alone: every state has an icon shape and a text label next to its colour. */
+
+:root {
+  color-scheme: light dark;
+
+  --page: #f4f4f1;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-secondary: #52514e;
+  --hairline: #e1e0d9;
+  --border: rgba(11, 11, 11, 0.12);
+  --link: #1f5fae;
+  --focus: #2a78d6;
+
+  /* Status: reserved for the states, never used as decoration. */
+  --good: #0ca30c;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --pending: #898781;
+
+  --good-wash: #e9f6e9;
+  --serious-wash: #fdeee7;
+  --critical-wash: #fbe9e9;
+
+  --radius: 10px;
+  --gap: 1rem;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --hairline: #2c2c2a;
+    --border: rgba(255, 255, 255, 0.12);
+    --link: #7fb2f0;
+    --focus: #3987e5;
+
+    --good-wash: #12260f;
+    --serious-wash: #33201a;
+    --critical-wash: #331a1a;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 76rem;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 1.25rem clamp(0.75rem, 3vw, 2rem) 1.5rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+dl,
+dd,
+ul {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(1.35rem, 2.5vw + 0.75rem, 1.9rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+h4 {
+  font-size: 1.05rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.15em;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Header ---------- */
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.page-header__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 2rem;
+}
+
+.eyebrow {
+  color: var(--ink-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.page-header__status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+.summary .state-icon {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.refresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  color: var(--ink-secondary);
+  font-size: 0.9rem;
+}
+
+.refresh time {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.polling {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.05rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.polling::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--pending);
+}
+
+.polling--live::before {
+  background: var(--good);
+}
+
+/* Paused and hidden: a hollow dot, so the difference from "Live" is a shape as well as a colour. */
+.polling--paused::before,
+.polling--hidden::before {
+  border: 2px solid var(--pending);
+  background: transparent;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.75rem;
+}
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--ink-secondary);
+  font-size: 0.9rem;
+}
+
+.button,
+.field select {
+  min-height: 2.25rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.button {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button--quiet {
+  font-weight: 500;
+}
+
+.button:hover:not(:disabled),
+.field select:hover {
+  border-color: var(--ink-secondary);
+}
+
+.button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+@media (pointer: coarse) {
+  .button,
+  .field select {
+    min-height: 2.75rem;
+  }
+}
+
+.help {
+  max-width: 62rem;
+  color: var(--ink-secondary);
+  font-size: 0.88rem;
+}
+
+/* ---------- Environments ---------- */
+
+main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.environment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.environment__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.deployable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.deployable__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 0.9rem;
+}
+
+.deployable__header h3 {
+  padding: 0.4rem 0;
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.serving {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 1rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--pending);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.92rem;
+}
+
+.serving__headline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.serving__icon {
+  flex: none;
+  fill: none;
+  stroke: var(--pending);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.serving__detail,
+.serving__frontdoor {
+  color: var(--ink-secondary);
+}
+
+.serving__frontdoor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Front Door and the nodes contradict each other: the banner is a warning whatever the nodes say. */
+.serving--disagrees {
+  border-color: var(--serious);
+  border-left-color: var(--serious);
+}
+
+.serving--disagrees .serving__frontdoor {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.serving--primary {
+  border-left-color: var(--good);
+}
+
+.serving--primary .serving__icon {
+  stroke: var(--good);
+}
+
+.serving--failedover {
+  border-color: var(--serious);
+  border-left-color: var(--serious);
+  background: var(--serious-wash);
+}
+
+.serving--failedover .serving__icon {
+  stroke: var(--ink);
+}
+
+.serving--down {
+  border-color: var(--critical);
+  border-left-color: var(--critical);
+  background: var(--critical-wash);
+}
+
+.serving--down .serving__icon {
+  stroke: var(--critical);
+}
+
+/* ---------- Tiles ---------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr));
+  gap: var(--gap);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--pending);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.tile--healthy {
+  border-top-color: var(--good);
+}
+
+.tile--unhealthy {
+  border-top-color: var(--serious);
+}
+
+.tile--unreachable {
+  border-top-color: var(--critical);
+}
+
+.tile__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.75rem;
+}
+
+.tile__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.4rem;
+  margin-top: -0.25rem;
+}
+
+.tile__address {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  color: var(--ink-secondary);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.tile__name {
+  font-family: var(--font-mono);
+}
+
+.tile__detail {
+  color: var(--ink-secondary);
+  font-size: 0.82rem;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink-secondary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip--serving {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.6rem 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: var(--page);
+  font-size: 0.88rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.state--healthy {
+  background: var(--good-wash);
+}
+
+.state--unhealthy {
+  background: var(--serious-wash);
+}
+
+.state--unreachable {
+  background: var(--critical-wash);
+}
+
+.state-icon {
+  flex: none;
+  fill: var(--pending);
+}
+
+.state-icon__mark {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.state-icon--healthy {
+  fill: var(--good);
+}
+
+.state-icon--unhealthy {
+  fill: var(--serious);
+}
+
+.state-icon--unhealthy .state-icon__mark {
+  stroke: #0b0b0b;
+}
+
+.state-icon--unreachable {
+  fill: var(--critical);
+}
+
+.state-icon--pending {
+  fill: none;
+}
+
+.state-icon--pending .state-icon__ring {
+  stroke: var(--pending);
+  stroke-width: 1.5;
+}
+
+.state-icon--pending .state-icon__mark {
+  stroke: var(--pending);
+  stroke-width: 2;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 1rem;
+}
+
+.metrics dt {
+  color: var(--ink-secondary);
+  font-size: 0.76rem;
+}
+
+.metrics dd {
+  font-size: 1.02rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- History strip ---------- */
+
+.history {
+  display: block;
+  width: 100%;
+  height: 1.5rem;
+  margin-top: auto;
+}
+
+.history__bar--empty {
+  fill: var(--hairline);
+}
+
+.history__bar--healthy {
+  fill: var(--good);
+}
+
+.history__bar--unhealthy {
+  fill: var(--serious);
+}
+
+.history__bar--unreachable {
+  fill: var(--critical);
+}
+
+.history__bar:hover {
+  opacity: 0.7;
+}
+
+/* ---------- Messages ---------- */
+
+.empty {
+  color: var(--ink-secondary);
+}
+
+.problem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--critical);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--critical-wash);
+}
+
+.problem ul {
+  padding-left: 1.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.app-loading {
+  padding: 20vh 1rem;
+  color: var(--ink-secondary);
+  text-align: center;
+}
+
+/* ---------- Footer ---------- */
+
+.page-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-secondary);
+  font-size: 0.82rem;
+}
+
+/* ---------- Blazor's error bar (shown by the framework when the app fails) ---------- */
+
+#blazor-error-ui {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1000;
+  display: none;
+  padding: 0.7rem 3rem 0.8rem 1.25rem;
+  border-top: 4px solid var(--critical);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.25);
+}
+
+#blazor-error-ui .dismiss {
+  position: absolute;
+  top: 0.45rem;
+  right: 1rem;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+@media (max-width: 30rem) {
+  .page-header__top {
+    align-items: flex-start;
+  }
+
+  .controls .button--quiet {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tile {
+    transition: border-color 0.2s ease;
+  }
+}
+
+@media (forced-colors: active) {
+  .tile,
+  .serving,
+  .state {
+    border: 1px solid CanvasText;
+  }
+
+  .history__bar {
+    fill: CanvasText;
+  }
+
+  .history__bar--empty {
+    fill: GrayText;
+  }
+}

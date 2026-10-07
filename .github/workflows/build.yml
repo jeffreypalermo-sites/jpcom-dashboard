@@ -1,0 +1,67 @@
+# Build of the health dashboard (a Blazor WebAssembly site): compile with warnings as errors, run the unit tests,
+# publish the static site and keep it as the artifact dashboard-site (the content of the published wwwroot folder,
+# index.html at its root). After a green Build of master, release.yml turns that artifact into a release candidate.
+# The version is MAJOR_VERSION.MINOR_VERSION.<run number>; release.yml reads the two numbers from this file.
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MAJOR_VERSION: 1
+  MINOR_VERSION: 0
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Version
+        run: echo "VERSION=${MAJOR_VERSION}.${MINOR_VERSION}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Restore
+        run: dotnet restore Dashboard.sln
+
+      - name: Build
+        run: dotnet build Dashboard.sln -c Release --no-restore -warnaserror "-p:Version=${VERSION}"
+
+      - name: Test
+        run: dotnet test Dashboard.sln -c Release --no-build
+
+      - name: Publish
+        run: dotnet publish src/Dashboard -c Release --no-restore -warnaserror "-p:Version=${VERSION}" -o publish
+
+      - name: Upload the site
+        uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-site
+          path: publish/wwwroot
+          if-no-files-found: error
+
+  # The one check the default-branch ruleset requires: it reports the outcome of the build job under a fixed name.
+  result:
+    name: Build result
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: The build job succeeded
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          echo "build: ${BUILD_RESULT}"
+          test "${BUILD_RESULT}" = "success"

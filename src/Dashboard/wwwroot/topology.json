@@ -1,0 +1,33 @@
+{
+  "system": { "slug": "cmdemo2", "name": "CM demo 2 multi-region" },
+  "generated": "2026-10-04T22:00:00Z",
+  "environments": [
+    {
+      "name": "tdd", "tier": "nonprod",
+      "deployables": [
+        {
+          "name": "ui",
+          "frontDoor": "https://cmdemo2-tdd-abc123.z01.azurefd.net",
+          "healthPath": "/_healthcheck", "alivePath": "/alive", "versionPath": "/_version",
+          "nodes": [
+            { "name": "app-cmdemo2-tdd-ui", "region": "westus3", "role": "primary", "url": "https://app-cmdemo2-tdd-ui.azurewebsites.net" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "uat", "tier": "nonprod",
+      "deployables": [
+        {
+          "name": "ui",
+          "frontDoor": "https://cmdemo2-uat-def456.z01.azurefd.net",
+          "healthPath": "/_healthcheck", "alivePath": "/alive", "versionPath": "/_version",
+          "nodes": [
+            { "name": "app-cmdemo2-uat-ui", "region": "westus3", "role": "primary", "url": "https://app-cmdemo2-uat-ui.azurewebsites.net" },
+            { "name": "app-cmdemo2-uat-ui-eastus2", "region": "eastus2", "role": "standby", "url": "https://app-cmdemo2-uat-ui-eastus2.azurewebsites.net" }
+          ]
+        }
+      ]
+    }
+  ]
+}
