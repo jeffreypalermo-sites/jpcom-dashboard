@@ -107,9 +107,54 @@ public class ServingAssessmentTests
     [Fact]
     public void ANodeWithoutRegionIsNamedByItsName()
     {
-        var assessment = ServingAssessment.Assess([new NodeHealth("app-one", null, true, Healthy)], frontDoor: null);
+        var assessment = ServingAssessment.Assess([new NodeHealth("app-one", null, true, Healthy)], frontDoor: Healthy);
 
         Assert.Equal("Expected to serve traffic: app-one (primary)", assessment.Headline);
+    }
+
+    [Theory]
+    [InlineData(Pending, ServingState.Pending, "Checking app-one")]
+    [InlineData(Healthy, ServingState.Primary, "Serves traffic: app-one")]
+    [InlineData(Unhealthy, ServingState.Down, "Not serving: app-one")]
+    [InlineData(Unreachable, ServingState.Down, "Not serving: app-one")]
+    public void TheOnlyNodeOfADeployableWithoutAFrontDoorServesOrDoesNot(HealthState node, ServingState state, string headline)
+    {
+        // One app at one public address, as in a cluster: the states stay, the words name no role and no region.
+        var assessment = ServingAssessment.Assess([new NodeHealth("app-one", null, true, node)], frontDoor: null);
+
+        Assert.Equal(state, assessment.State);
+        Assert.Equal("app-one", assessment.OnlyNode?.Name);
+        Assert.Equal(headline, assessment.Headline);
+        Assert.Null(assessment.FailoverDetail);
+        Assert.Null(assessment.FrontDoorText);
+    }
+
+    [Fact]
+    public void TheOnlyNodeIsNamedByItsRegionWhenTheTopologyGivesOne() =>
+        Assert.Equal("Serves traffic: westus3", ServingAssessment.Assess([Primary(Healthy)], frontDoor: null).Headline);
+
+    [Fact]
+    public void AnOnlyNodeWhoseRoleIsNotPrimaryDidNotFailOver()
+    {
+        var assessment = ServingAssessment.Assess([Standby(Healthy)], frontDoor: null);
+
+        Assert.Equal("Serves traffic: eastus2", assessment.Headline);
+        Assert.Null(assessment.FailoverDetail);
+    }
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 2)]
+    [InlineData(false, 0)]
+    public void ADeployableWithAFrontDoorOrSeveralNodesKeepsItsWords(bool frontDoor, int nodes)
+    {
+        NodeHealth[] all = [Primary(Healthy), Standby(Healthy)];
+
+        var assessment = ServingAssessment.Assess(all.Take(nodes), frontDoor ? Healthy : null);
+
+        Assert.Null(assessment.OnlyNode);
+        Assert.Equal(nodes == 0 ? "No nodes in the topology" : "Expected to serve traffic: westus3 (primary)", assessment.Headline);
     }
 
     [Fact]

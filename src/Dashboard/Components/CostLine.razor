@@ -1,0 +1,47 @@
+@* One line of cost (CostReport): the last complete day, seven days and the month so far, with the day the numbers
+   are of. Never live and never a state: no colour and no icon, and the tooltip says where the numbers come from. A
+   number Azure did not give is a dash. *@
+<p class="cost" title="@CostText.Help(Report)">
+    <span class="cost__label">@Label</span>
+    @foreach (var part in CostText.Parts(Amounts, Report.Currency, Report.AsOf, Now))
+    {
+        <span class="cost__part"><strong>@part.Amount</strong> @part.Period</span>
+    }
+    @if (Report.AsOf is { } day)
+    {
+        <span class="cost__part cost__as-of">as of <time datetime="@CostText.Date(day)">@CostText.Date(day)</time></span>
+    }
+    @if (CostText.Services(Services, Report, Now) is { } services)
+    {
+        <span class="cost__services">@services</span>
+    }
+    @if (CostText.Estimate(Estimate, Report, Now) is { } estimate)
+    {
+        <span class="cost__services cost__estimate" title="@CostText.EstimateHelp">@estimate</span>
+    }
+</p>
+
+@code {
+    /// <summary>The file the amounts are from: its currency and the day its numbers are of.</summary>
+    [Parameter, EditorRequired]
+    public CostReport Report { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CostAmounts Amounts { get; set; } = default!;
+
+    /// <summary>Whose cost the line is: "Cost" under an environment's name, "Cost of the system" in the page's header.</summary>
+    [Parameter]
+    public string Label { get; set; } = "Cost";
+
+    /// <summary>The services that cost most this month; none for a line without them.</summary>
+    [Parameter]
+    public IReadOnlyList<CostService>? Services { get; set; }
+
+    /// <summary>The environment's estimated part of what the environments share; none for a line without one.</summary>
+    [Parameter]
+    public CostEstimate? Estimate { get; set; }
+
+    /// <summary>The moment of this rendering: "yesterday" and "this month" are said only while they are true.</summary>
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+}

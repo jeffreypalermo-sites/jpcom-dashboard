@@ -1,0 +1,32 @@
+@* What is being deployed (DeploymentMark): one line per deployment, a dot and the sentence, the sentence a link to
+   the task in Octopus Deploy where the file gives its address. Minutes old, and the tooltip says so. The dot's shape
+   and the sentence say the state; the colour is the marker's own, not one of health. Nothing without a mark. *@
+@if (Marks.Count > 0)
+{
+    <ul class="deployments" aria-label="@Label" title="@DeploymentText.Help(Generated, Zone)">
+        @foreach (var mark in Marks)
+        {
+            <li class="deployments__mark @(mark.InFlight ? "deployments__mark--flight" : null)" title="@DeploymentText.Title(mark)">
+                <DeploymentDot State="mark.State" />
+                <span><DeepLink Href="mark.Url" Title="@DeploymentText.TaskTitle">@mark.Sentence</DeepLink></span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>The marks, the one a person has to act on first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DeploymentMark> Marks { get; set; } = default!;
+
+    /// <summary>Whose deployments the list holds, for a screen reader.</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = default!;
+
+    /// <summary>When the system read Octopus Deploy (the file's <c>generated</c>): the marks are as of then.</summary>
+    [Parameter]
+    public DateTimeOffset? Generated { get; set; }
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = default!;
+}

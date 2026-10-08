@@ -44,26 +44,39 @@ public enum FrontDoorAgreement
 /// Which node is expected to serve a deployable's traffic: the first healthy node in priority order (primary nodes,
 /// then the others, each in the order of the topology), and whether the Front Door endpoint agrees.
 /// </summary>
+/// <param name="OnlyNode">
+/// The only node of a deployable without a Front Door endpoint (one app at one public address, as in a cluster); null
+/// for every other deployable. Nothing can take over from such a node, so its words name no primary, no standby, no
+/// region and no failover: it serves, or it does not.
+/// </param>
 public sealed record ServingAssessment(
     ServingState State,
     NodeHealth? Expected,
     NodeHealth? FailedPrimary,
     FrontDoorAgreement FrontDoor,
-    HealthState? FrontDoorState)
+    HealthState? FrontDoorState,
+    NodeHealth? OnlyNode = null)
 {
     public bool IsFailedOver => State == ServingState.FailedOver;
 
-    public string Headline => State switch
-    {
-        ServingState.NoNodes => "No nodes in the topology",
-        ServingState.Pending => "Checking which region serves traffic",
-        ServingState.Primary => $"Expected to serve traffic: {Expected!.Label} (primary)",
-        ServingState.FailedOver => $"Failed over to {Expected!.Label}",
-        _ => "No healthy node: nothing can serve traffic",
-    };
+    public string Headline => OnlyNode is { } only
+        ? State switch
+        {
+            ServingState.Pending => $"Checking {only.Label}",
+            ServingState.Primary or ServingState.FailedOver => $"Serves traffic: {only.Label}",
+            _ => $"Not serving: {only.Label}",
+        }
+        : State switch
+        {
+            ServingState.NoNodes => "No nodes in the topology",
+            ServingState.Pending => "Checking which region serves traffic",
+            ServingState.Primary => $"Expected to serve traffic: {Expected!.Label} (primary)",
+            ServingState.FailedOver => $"Failed over to {Expected!.Label}",
+            _ => "No healthy node: nothing can serve traffic",
+        };
 
-    /// <summary>Why the deployable failed over; null in every other state.</summary>
-    public string? FailoverDetail => State != ServingState.FailedOver
+    /// <summary>Why the deployable failed over; null in every other state, and for a single node.</summary>
+    public string? FailoverDetail => State != ServingState.FailedOver || OnlyNode is not null
         ? null
         : FailedPrimary is null
             ? $"No primary node is healthy; {Expected!.Label} is expected to serve traffic."
@@ -88,7 +101,8 @@ public sealed record ServingAssessment(
         var byPriority = nodes.OrderBy(node => node.IsPrimary ? 0 : 1).ToList();
         var (state, expected) = Decide(byPriority);
         var failedPrimary = state == ServingState.FailedOver ? byPriority.FirstOrDefault(node => node.IsPrimary) : null;
-        return new ServingAssessment(state, expected, failedPrimary, Compare(state, frontDoor), frontDoor);
+        var single = frontDoor is null && byPriority.Count == 1 ? byPriority[0] : null;
+        return new ServingAssessment(state, expected, failedPrimary, Compare(state, frontDoor), frontDoor, single);
     }
 
     private static (ServingState State, NodeHealth? Expected) Decide(List<NodeHealth> byPriority)

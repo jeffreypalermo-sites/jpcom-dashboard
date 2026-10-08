@@ -1,0 +1,51 @@
+@startuml
+!pragma layout smetana
+!include <C4/C4_Deployment>
+LAYOUT_LEFT_RIGHT()
+HIDE_STEREOTYPE()
+SHOW_PERSON_OUTLINE()
+skinparam wrapWidth 300
+skinparam maxMessageSize 220
+skinparam svgLinkTarget _blank
+skinparam hyperlinkColor #1f5fae
+skinparam hyperlinkUnderline true
+skinparam nodesep 30
+skinparam ranksep 40
+UpdateElementStyle("container", $bgColor="#607d8b", $fontColor="#ffffff", $borderColor="#455a64")
+UpdateElementStyle("person", $bgColor="#37474f", $fontColor="#ffffff", $borderColor="#263238")
+AddBoundaryTag("scope", $bgColor="#ffffff", $fontColor="#263238", $borderColor="#78909c", $borderStyle=DottedLine())
+AddNodeTag("region", $bgColor="#fafafa", $fontColor="#37474f", $borderColor="#90a4ae", $borderStyle=DashedLine())
+AddNodeTag("plan", $bgColor="#ffffff", $fontColor="#37474f", $borderColor="#b0bec5")
+UpdateRelStyle($textColor="#455a64", $lineColor="#78909c")
+
+Person(browser, "Browser", "a user, or this dashboard")
+Boundary(sub, "Azure subscription", $type="subscription", $tags="scope") {
+  Boundary(rg_edge, "rg-cmdemo2-edge", $type="resource group", $tags="scope") {
+    Deployment_Node(afd, "afd-cmdemo2", "Front Door profile, Standard: global", $tags="plan") {
+      Container(fd_ui, "cmdemo2-uat-ui", "Front Door endpoint", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAABiCAYAAABagp/GAAAAb0lEQVR42u3BAQ0AAADCoPdPbQ8HFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMC7AWOxAAGTj/7WAAAAAElFTkSuQmCC>")
+    }
+  }
+  Boundary(rg_tier, "rg-cmdemo2-nonprod", $type="resource group", $tags="scope") {
+    Deployment_Node(region_standby, "eastus2", "Azure region: standby", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAL4AAAAWCAYAAAB+OyYeAAAAJklEQVR42u3BAQEAAACCIP+vbkhAAQAAAAAAAAAAAAAAAAAAADwYQWYAAUAsKwYAAAAASUVORK5CYII=>", $tags="region") {
+      Deployment_Node(plan_standby, "asp-cmdemo2-uat-eastus2", "App Service plan, B1", "", $tags="plan") {
+        Container(app_ui_standby, "app-cmdemo2-uat-ui-eastus2", "web app: ui", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAACSCAYAAABPEIbfAAAAmklEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+DQR8AABAiennwAAAABJRU5ErkJggg==>")
+      }
+    }
+    Deployment_Node(region_primary, "westus3", "Azure region: primary", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAL4AAAAWCAYAAAB+OyYeAAAAJklEQVR42u3BAQEAAACCIP+vbkhAAQAAAAAAAAAAAAAAAAAAADwYQWYAAUAsKwYAAAAASUVORK5CYII=>", $tags="region") {
+      Deployment_Node(plan_primary, "asp-cmdemo2-tdd", "App Service plan, B1", "shared by tdd, uat", $tags="plan") {
+        Container(app_ui_primary, "app-cmdemo2-uat-ui", "web app: ui", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAACSCAYAAABPEIbfAAAAmklEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+DQR8AABAiennwAAAABJRU5ErkJggg==>")
+      }
+    }
+    Deployment_Node(region_data, "centralus", "Azure region: data, static sites", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAL4AAAAWCAYAAAB+OyYeAAAAJklEQVR42u3BAQEAAACCIP+vbkhAAQAAAAAAAAAAAAAAAAAAADwYQWYAAUAsKwYAAAAASUVORK5CYII=>", $tags="region") {
+      ContainerDb(sqldb, "sqldb-cmdemo2-uat", "Azure SQL database", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAAAuCAYAAAAiGFXRAAAAQElEQVR42u3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+Dem7gAB7XoUPgAAAABJRU5ErkJggg==>")
+      Container(swa_dashboard, "swa-cmdemo2-uat-dashboard", "Static Web App: dashboard", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAAAuCAYAAAAiGFXRAAAAQElEQVR42u3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+Dem7gAB7XoUPgAAAABJRU5ErkJggg==>")
+    }
+  }
+}
+Rel(browser, fd_ui, "cmdemo2-uat-def456…azurefd.net", "HTTPS", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAAAiCAYAAACwRFDGAAAAKUlEQVR42u3BMQEAAADCoPVP7WULoAAAAAAAAAAAAAAAAAAAAAAAAABuTKIAAbRR1q0AAAAASUVORK5CYII=>\n<U+00A0>", $link="https://cmdemo2-uat-def456.z01.azurefd.net")
+Rel(fd_ui, app_ui_primary, "origin, priority 1", "HTTPS", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAAAiCAYAAACwRFDGAAAAKUlEQVR42u3BMQEAAADCoPVP7WULoAAAAAAAAAAAAAAAAAAAAAAAAABuTKIAAbRR1q0AAAAASUVORK5CYII=>\n<U+00A0>")
+Rel(fd_ui, app_ui_standby, "origin, priority 2", "HTTPS", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAAAiCAYAAACwRFDGAAAAKUlEQVR42u3BMQEAAADCoPVP7WULoAAAAAAAAAAAAAAAAAAAAAAAAABuTKIAAbRR1q0AAAAASUVORK5CYII=>\n<U+00A0>")
+Rel(app_ui_primary, sqldb, "reads and writes", "TCP 1433", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAAAiCAYAAACwRFDGAAAAKUlEQVR42u3BMQEAAADCoPVP7WULoAAAAAAAAAAAAAAAAAAAAAAAAABuTKIAAbRR1q0AAAAASUVORK5CYII=>\n<U+00A0>")
+Rel(app_ui_standby, sqldb, "reads and writes", "TCP 1433", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAAAiCAYAAACwRFDGAAAAKUlEQVR42u3BMQEAAADCoPVP7WULoAAAAAAAAAAAAAAAAAAAAAAAAABuTKIAAbRR1q0AAAAASUVORK5CYII=>\n<U+00A0>")
+Rel(browser, swa_dashboard, "loads the dashboard", "HTTPS", "")
+@enduml

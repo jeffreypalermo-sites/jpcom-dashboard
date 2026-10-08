@@ -34,7 +34,7 @@ jobs:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       found: ${{ steps.find.outputs.found }}
     steps:
@@ -51,7 +51,7 @@ jobs:
   release:
     needs: packages
     if: needs.packages.outputs.found == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: release
     steps:
       - uses: actions/checkout@v6.0.1
@@ -99,13 +99,13 @@ jobs:
           service_account_id: ${{ vars.OCTOPUS_SERVICE_ACCOUNT_ID }}
 
       - name: Push the site package
-        uses: OctopusDeploy/push-package-action@v3
+        uses: OctopusDeploy/push-package-action@v4
         with:
           packages: octopus-packages/${{ vars.SYSTEM_SLUG }}-${{ vars.DEPLOYABLE_NAME }}.${{ steps.version.outputs.version }}.zip
           overwrite_mode: IgnoreIfExists
 
       - name: Create the release
-        uses: OctopusDeploy/create-release-action@v3
+        uses: OctopusDeploy/create-release-action@v4
         with:
           project: ${{ vars.SYSTEM_SLUG }}-${{ vars.DEPLOYABLE_NAME }}
           release_number: ${{ steps.version.outputs.version }}

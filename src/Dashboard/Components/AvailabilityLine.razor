@@ -1,0 +1,46 @@
+@* One line of availability (HealthReports): how many of the pipeline's hourly health reports found the environment
+   healthy, in 24 hours and in seven days, and when one last failed. It says in words that these are hourly checks,
+   not continuous monitoring. History, not the state of this moment: no colour and no icon. *@
+@{
+    var parts = AvailabilityText.Parts(Reports, Now);
+}
+@if (parts.Count > 0)
+{
+    <p class="availability" title="@AvailabilityText.Help(Changed, Zone)">
+        <span class="availability__label">@Label</span>
+        @foreach (var part in parts)
+        {
+            <span class="availability__part" title="@part.Title">
+                @part.Before@if (part.When is { } when)
+                {
+                    <time datetime="@TimeText.Iso(when)" title="@TimeText.DateAndTime(when, Zone)"><strong>@part.Strong</strong></time>
+                }
+                else
+                {
+                    <strong>@part.Strong</strong>
+                }@part.After
+            </span>
+        }
+        <span class="availability__note">@AvailabilityText.Note</span>
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public HealthReports Reports { get; set; } = default!;
+
+    /// <summary>Whose availability the line is: "Availability" under an environment's name, with the name under the diagram.</summary>
+    [Parameter]
+    public string Label { get; set; } = "Availability";
+
+    /// <summary>When the delivery facts last changed (the file's <c>generated</c>): the counts are as of then.</summary>
+    [Parameter]
+    public DateTimeOffset? Changed { get; set; }
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = default!;
+
+    /// <summary>The moment of this rendering: "9 h ago" is counted from it.</summary>
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+}

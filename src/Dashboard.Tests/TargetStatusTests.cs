@@ -78,6 +78,7 @@ public class TargetStatusTests
 
         Assert.Equal([TargetKind.FrontDoor, TargetKind.Node, TargetKind.Node], deployable.Targets.Select(target => target.Kind));
         Assert.Equal(["Front Door", "app-west", "app-east"], deployable.Targets.Select(target => target.Name));
+        Assert.True(deployable.HasFrontDoor);
         Assert.True(deployable.Nodes[0].IsPrimary);
         Assert.False(deployable.Nodes[1].IsPrimary);
     }
@@ -89,6 +90,7 @@ public class TargetStatusTests
             "ui", null, "/_healthcheck", "/alive", "/_version", [new NodeInfo("app", "westus3", "primary", new Uri("https://app.example.net"))]));
 
         Assert.Null(deployable.FrontDoor);
+        Assert.False(deployable.HasFrontDoor);
         Assert.Equal(TargetKind.Node, Assert.Single(deployable.Targets).Kind);
         Assert.Equal(FrontDoorAgreement.NotPresent, deployable.Assess().FrontDoor);
     }
