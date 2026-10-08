@@ -24,7 +24,15 @@ public class TopologyParserTests
     {
         var topology = Valid(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "topology.sample.json")));
 
-        Assert.Equal(new SystemInfo("cmdemo2", "CM demo 2 multi-region"), topology.System);
+        Assert.Equal(
+            new SystemInfo(
+                "cmdemo2",
+                "CM demo 2 multi-region",
+                new Uri("https://github.com/example-org/cmdemo2-system"),
+                new Uri("https://raw.githubusercontent.com/example-org/cmdemo2-system/status/delivery.json"),
+                new Uri("https://raw.githubusercontent.com/example-org/cmdemo2-system/status/cost.json"),
+                DeploymentsUrl: new Uri("https://raw.githubusercontent.com/example-org/cmdemo2-system/deployments/deployments.json")),
+            topology.System);
         Assert.Equal(new DateTimeOffset(2026, 10, 4, 22, 0, 0, TimeSpan.Zero), topology.Generated);
         Assert.Equal(["tdd", "uat"], topology.Environments.Select(environment => environment.Name));
         Assert.All(topology.Environments, environment => Assert.Equal("nonprod", environment.Tier));
@@ -37,13 +45,140 @@ public class TopologyParserTests
         Assert.Equal("/_version", tdd.VersionPath);
         Assert.Equal(
             new NodeInfo("app-cmdemo2-tdd-ui", "westus3", "primary", new Uri("https://app-cmdemo2-tdd-ui.azurewebsites.net")),
-            Assert.Single(tdd.Nodes));
+            Assert.Single(tdd.Nodes) with { Links = null });
 
         var uat = Assert.Single(topology.Environments[1].Deployables);
         Assert.Equal(["westus3", "eastus2"], uat.Nodes.Select(node => node.Region));
         Assert.Equal(["primary", "standby"], uat.Nodes.Select(node => node.Role));
         Assert.True(uat.Nodes[0].IsPrimary);
         Assert.False(uat.Nodes[1].IsPrimary);
+
+        // Where the versions pinned in Git are read, and the links into GitHub and Octopus Deploy.
+        Assert.Equal(
+            [
+                "https://raw.githubusercontent.com/example-org/cmdemo2-system/main/environments/tdd/versions.json",
+                "https://raw.githubusercontent.com/example-org/cmdemo2-system/main/environments/uat/versions.json",
+            ],
+            topology.Environments.Select(environment => environment.VersionsUrl?.AbsoluteUri));
+        Assert.Equal(
+            [
+                "https://github.com/example-org/cmdemo2-system/commits/main/environments/tdd/versions.json",
+                "https://github.com/example-org/cmdemo2-system/commits/main/environments/uat/versions.json",
+            ],
+            topology.Environments.Select(environment => environment.VersionsHistoryUrl?.AbsoluteUri));
+        Assert.Equal("https://example.octopus.app/app#/Spaces-1/projects/cmdemo2-ui", tdd.ProjectUrl?.AbsoluteUri);
+        Assert.Equal(tdd.ProjectUrl, uat.ProjectUrl);
+    }
+
+    [Theory]
+    [InlineData("""{ "environments": [ { "name": "tdd", "deployables": [ { "name": "ui", "nodes": [] } ] } ] }""")]
+    [InlineData("""
+        { "system": { "slug": "demo", "repository": null },
+          "environments": [ { "name": "tdd", "versionsUrl": null, "versionsHistoryUrl": null,
+            "deployables": [ { "name": "ui", "projectUrl": null, "nodes": [] } ] } ] }
+        """)]
+    public void TheVersionAndLinkAddressesMayBeAbsentOrNull(string json)
+    {
+        var topology = Valid(json);
+
+        Assert.Null(topology.System.Repository);
+        Assert.Null(topology.Environments[0].VersionsUrl);
+        Assert.Null(topology.Environments[0].VersionsHistoryUrl);
+        Assert.Null(topology.Environments[0].Deployables[0].ProjectUrl);
+    }
+
+    [Fact]
+    public void TheOctopusProjectAddressKeepsItsFragment()
+    {
+        var deployable = Valid("""
+            { "environments": [ { "name": "tdd", "deployables": [
+              { "name": "ui", "projectUrl": " https://octopus.example.net/app#/Spaces-42/projects/demo-ui " } ] } ] }
+            """).Environments[0].Deployables[0];
+
+        Assert.Equal("https://octopus.example.net/app#/Spaces-42/projects/demo-ui", deployable.ProjectUrl?.AbsoluteUri);
+    }
+
+    [Fact]
+    public void AVersionOrLinkAddressThatIsNotAnAddressIsAnErrorWithItsPlace()
+    {
+        var errors = Invalid("""
+            { "system": { "slug": "demo", "repository": "example-org/demo-system" },
+              "environments": [
+                { "name": "tdd", "versionsUrl": "environments/tdd/versions.json", "versionsHistoryUrl": 7,
+                  "deployables": [ { "name": "ui", "projectUrl": "javascript:alert(1)" } ] } ] }
+            """);
+
+        Assert.Equal(
+            [
+                "system.repository: not an absolute http or https address.",
+                "environments[0].versionsUrl: not an absolute http or https address.",
+                "environments[0].versionsHistoryUrl: not an absolute http or https address.",
+                "environments[0].deployables[0].projectUrl: not an absolute http or https address.",
+            ],
+            errors);
+    }
+
+    [Fact]
+    public void ADeployableMayNameItsOwnPinAndItsHistory()
+    {
+        var deployable = Valid("""
+            { "environments": [ { "name": "uat", "deployables": [
+              { "name": "ui", "frontDoor": null,
+                "pinUrl": " https://raw.example.net/org/demo-system/main/gitops/environments/uat/ui/kustomization.yaml ",
+                "pinHistoryUrl": "https://github.example.net/org/demo-system/commits/main/gitops/environments/uat/ui/kustomization.yaml",
+                "nodes": [ { "url": "https://ui.uat.example.net", "role": "primary" } ] } ] } ] }
+            """).Environments[0].Deployables[0];
+
+        Assert.Equal("https://raw.example.net/org/demo-system/main/gitops/environments/uat/ui/kustomization.yaml", deployable.PinUrl?.AbsoluteUri);
+        Assert.Equal(
+            "https://github.example.net/org/demo-system/commits/main/gitops/environments/uat/ui/kustomization.yaml",
+            deployable.PinHistoryUrl?.AbsoluteUri);
+        Assert.Equal("kustomization.yaml", deployable.PinFile);
+    }
+
+    [Theory]
+    [InlineData("""{ "name": "ui", "nodes": [] }""")]
+    [InlineData("""{ "name": "ui", "pinUrl": null, "pinHistoryUrl": null, "nodes": [] }""")]
+    public void ThePinAddressesOfADeployableMayBeAbsentOrNull(string deployable)
+    {
+        var read = Valid($$"""{ "environments": [ { "name": "tdd", "deployables": [ {{deployable}} ] } ] }""").Environments[0].Deployables[0];
+
+        Assert.Null(read.PinUrl);
+        Assert.Null(read.PinHistoryUrl);
+        Assert.Equal("versions.json", read.PinFile);
+    }
+
+    [Fact]
+    public void APinAddressThatIsNotAnAddressIsAnErrorWithItsPlace()
+    {
+        var errors = Invalid("""
+            { "environments": [ { "name": "tdd", "deployables": [
+              { "name": "ui", "pinUrl": "gitops/environments/tdd/ui/kustomization.yaml", "pinHistoryUrl": "ftp://example.net/history" },
+              { "name": "api", "pinUrl": 7, "pinHistoryUrl": "" } ] } ] }
+            """);
+
+        Assert.Equal(
+            [
+                "environments[0].deployables[0].pinUrl: not an absolute http or https address.",
+                "environments[0].deployables[0].pinHistoryUrl: not an absolute http or https address.",
+                "environments[0].deployables[1].pinUrl: not an absolute http or https address.",
+                "environments[0].deployables[1].pinHistoryUrl: not an absolute http or https address.",
+            ],
+            errors);
+    }
+
+    [Fact]
+    public void ATopologyKnowsWhetherAnyDeployableHasAFrontDoor()
+    {
+        const string Node = """ "nodes": [ { "url": "https://a.example.net" } ] """;
+
+        Assert.True(Valid(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "topology.sample.json"))).HasFrontDoor);
+        Assert.True(Valid($$"""
+            { "environments": [ { "name": "tdd", "deployables": [ { {{Node}} } ] },
+                                { "name": "uat", "deployables": [ { "frontDoor": "https://fd.example.net", {{Node}} } ] } ] }
+            """).HasFrontDoor);
+        Assert.False(Valid($$"""{ "environments": [ { "name": "tdd", "deployables": [ { "frontDoor": null, {{Node}} } ] } ] }""").HasFrontDoor);
+        Assert.False(Valid("""{ "environments": [] }""").HasFrontDoor);
     }
 
     [Fact]
@@ -227,5 +362,93 @@ public class TopologyParserTests
                 "environments[3].deployables: not an array.",
             ],
             errors);
+    }
+
+    // ----- The cluster view: cluster and environments[].namespace -----
+
+    private const string ClusterTopology = """
+        {
+          "environments": [
+            { "name": "tdd", "namespace": "cmdemo3-tdd", "deployables": [] },
+            { "name": "uat", "namespace": " cmdemo3-uat ", "deployables": [] },
+            { "name": "prod", "deployables": [] }
+          ],
+          "cluster": {
+            "name": "aks-cmdemo3",
+            "statusUrl": "https://cmdemo3-cluster.20-225-155-175.sslip.io/cluster.json",
+            "serviceUrl": "https://raw.githubusercontent.com/example-org/cmdemo3-system/cluster-status/aks.json",
+            "links": { "portal": "https://portal.azure.com/#@tenant/resource/aks/overview",
+                       "workloads": "https://portal.azure.com/#@tenant/resource/aks/workloads",
+                       "futureLink": "not an address" },
+            "futureField": 1
+          }
+        }
+        """;
+
+    [Fact]
+    public void TheClusterAndTheNamespacesOfTheEnvironmentsAreRead()
+    {
+        var topology = Valid(ClusterTopology);
+
+        var cluster = topology.Cluster!;
+        Assert.Equal("aks-cmdemo3", cluster.Name);
+        Assert.Equal("https://cmdemo3-cluster.20-225-155-175.sslip.io/cluster.json", cluster.StatusUrl?.AbsoluteUri);
+        Assert.Equal("https://raw.githubusercontent.com/example-org/cmdemo3-system/cluster-status/aks.json", cluster.ServiceUrl?.AbsoluteUri);
+        Assert.Equal("https://portal.azure.com/#@tenant/resource/aks/overview", cluster.Links![LinkSet.Portal]?.AbsoluteUri);
+        Assert.Equal("https://portal.azure.com/#@tenant/resource/aks/workloads", cluster.Links[LinkSet.Workloads]?.AbsoluteUri);
+
+        // A key of links the page does not know is ignored, whatever its value.
+        Assert.Equal([LinkSet.Portal, LinkSet.Workloads], cluster.Links.Keys.Order());
+        Assert.Equal(["cmdemo3-tdd", "cmdemo3-uat", null], topology.Environments.Select(environment => environment.Namespace));
+    }
+
+    [Theory]
+    [InlineData("""{ "environments": [ { "name": "tdd" } ] }""")]
+    [InlineData("""{ "environments": [ { "name": "tdd", "namespace": null } ], "cluster": null }""")]
+    public void ATopologyWithoutAClusterHasNoneAndItsEnvironmentsNoNamespace(string json)
+    {
+        var topology = Valid(json);
+
+        Assert.Null(topology.Cluster);
+        Assert.Null(Assert.Single(topology.Environments).Namespace);
+    }
+
+    [Fact]
+    public void TheSampleShippedWithTheAppNamesNoCluster()
+    {
+        var topology = Valid(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "topology.sample.json")));
+
+        Assert.Null(topology.Cluster);
+        Assert.All(topology.Environments, environment => Assert.Null(environment.Namespace));
+    }
+
+    [Theory]
+    [InlineData("""{ "environments": [], "cluster": {} }""")]
+    [InlineData("""{ "environments": [], "cluster": { "name": 5, "statusUrl": null, "serviceUrl": null, "links": null } }""")]
+    [InlineData("""{ "environments": [], "cluster": { "links": "none" } }""")]
+    [InlineData("""{ "environments": [], "cluster": { "links": { "portal": null } } }""")]
+    public void EveryPartOfTheClusterIsOptional(string json)
+    {
+        Assert.Equal(new ClusterInfo(null), Valid(json).Cluster);
+    }
+
+    [Theory]
+    [InlineData("\"statusUrl\": \"cluster.json\"", "cluster.statusUrl: not an absolute http or https address.")]
+    [InlineData("\"statusUrl\": \"/cluster.json\"", "cluster.statusUrl: not an absolute http or https address.")]
+    [InlineData("\"serviceUrl\": \"ftp://example.net/aks.json\"", "cluster.serviceUrl: not an absolute http or https address.")]
+    [InlineData("\"serviceUrl\": 7", "cluster.serviceUrl: not an absolute http or https address.")]
+    [InlineData("\"links\": { \"portal\": \"portal.azure.com\" }", "cluster.links.portal: not an absolute http or https address.")]
+    [InlineData("\"links\": { \"workloads\": false }", "cluster.links.workloads: not an absolute http or https address.")]
+    public void AnAddressOfTheClusterThatIsNotOneIsAnError(string field, string error)
+    {
+        var errors = Invalid($$"""{ "environments": [], "cluster": { {{field}} } }""");
+
+        Assert.Equal(error, Assert.Single(errors));
+    }
+
+    [Fact]
+    public void AClusterThatIsNotAnObjectIsAnError()
+    {
+        Assert.Equal("cluster: not an object.", Assert.Single(Invalid("""{ "environments": [], "cluster": "aks-cmdemo3" }""")));
     }
 }

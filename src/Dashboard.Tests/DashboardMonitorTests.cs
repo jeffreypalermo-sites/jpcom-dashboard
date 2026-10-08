@@ -25,8 +25,15 @@ public class DashboardMonitorTests
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
     private readonly SignallingTimeProvider _time = new();
 
-    private DashboardMonitor Monitor(StubHandler handler) =>
-        new(TopologyParser.Parse(TwoEnvironments).Topology!, new NodeProber(new HttpClient(handler), _time), _time);
+    private DashboardMonitor Monitor(StubHandler handler)
+    {
+        var http = new HttpClient(handler);
+        return new DashboardMonitor(
+            TopologyParser.Parse(TwoEnvironments).Topology!,
+            new NodeProber(http, _time),
+            new PinnedVersionsReader(http, _time),
+            _time);
+    }
 
     private static HttpResponseMessage Healthy(HttpRequestMessage request) =>
         StubHandler.Answer(HttpStatusCode.OK, request.RequestUri!.AbsolutePath == "/_version" ? """{"version":"2.4.21+sha"}""" : "Healthy");
@@ -164,6 +171,25 @@ public class DashboardMonitorTests
         await monitor.CheckAllAsync(ProbeKind.Liveness, CancellationToken.None);
 
         Assert.Equal(6, changes);
+    }
+
+    [Fact]
+    public async Task ATopologyWithoutPinnedVersionsAsksOnlyTheNodes()
+    {
+        var handler = new StubHandler(Healthy);
+        var monitor = Monitor(handler);
+
+        await monitor.CheckAllAsync(ProbeKind.Health, CancellationToken.None);
+
+        // Five endpoints, each with its probe and its version: nothing else is requested.
+        Assert.Equal(10, handler.Requests.Count);
+        Assert.All(monitor.Environments, environment =>
+        {
+            Assert.Equal(PinnedVersionsState.NotTracked, environment.Pinned.State);
+            Assert.False(environment.VersionsDiffer);
+            Assert.All(environment.Deployables, deployable => Assert.Null(environment.AssessVersions(deployable)));
+        });
+        Assert.Null(monitor.VersionSummary.Text);
     }
 
     [Fact]

@@ -1,0 +1,28 @@
+@* The cost that belongs to no environment of the page, after the environments: what Azure still bills under the name
+   of an environment the topology no longer has, then what the environments share ("shared"). Nothing without the
+   cost file, or when it has no such entry. *@
+@if (Monitor.Cost is { } cost)
+{
+    var index = 0;
+    foreach (var entry in cost.Others(Monitor.Environments.Select(environment => environment.Name)).Append(cost.Shared).OfType<CostEntry>())
+    {
+        var id = $"cost-entry-{index++}";
+        var shared = CostReport.IsShared(entry.Name);
+        <section class="environment environment--cost" aria-labelledby="@id">
+            <header class="environment__header">
+                <h2 id="@id">@entry.Name</h2>
+                <span class="chip">@(shared ? "no environment" : "not in the topology")</span>
+                <CostLine Report="cost" Amounts="entry.Amounts" Services="entry.TopServices" Now="Now" />
+            </header>
+            <p class="help">@(shared ? CostText.SharedHelp : CostText.OtherHelp(entry.Name))</p>
+        </section>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardMonitor Monitor { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+}

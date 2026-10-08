@@ -5,8 +5,8 @@
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <!-- The dashboard formats numbers and times itself, so it does not download the ICU data. -->
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- The deployment replaces topology.json: no precompressed copy (topology.json.br, .gz) may outlive the sample. -->
-    <CompressionExcludePatterns>$(CompressionExcludePatterns);topology.json</CompressionExcludePatterns>
+    <!-- The deployment replaces topology.json and runtime/: no precompressed copy (.br, .gz) may outlive the sample. -->
+    <CompressionExcludePatterns>$(CompressionExcludePatterns);topology.json;runtime/**</CompressionExcludePatterns>
   </PropertyGroup>
 
   <ItemGroup>

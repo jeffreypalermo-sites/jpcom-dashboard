@@ -1,0 +1,46 @@
+@* The "Code" card of the dashboard itself: the build that serves this page, from the file its own site publishes
+   (system.dashboard of the topology). The card is the one of the apps, labelled as the dashboard's. With a heading it
+   is a section of its own, after the environments of the health view; without one it is a row of cards, under the
+   runtime diagram. Nothing when the topology does not name the file, or while it does not answer. *@
+@if (Monitor.Topology.System.Dashboard is { } dashboard && Monitor.DashboardBuild is { } build)
+{
+    var context = BuildText.DashboardContext(dashboard.Name);
+    if (Heading)
+    {
+        <section class="environment environment--self" aria-labelledby="@($"{IdPrefix}-title")">
+            <header class="environment__header">
+                <h2 id="@($"{IdPrefix}-title")">@dashboard.Name</h2>
+                <span class="chip">@BuildText.ThisPage</span>
+            </header>
+            <p class="help">@BuildText.DashboardHelp</p>
+            <div class="facts-row">
+                <CodeCard Build="build" Context="@context" IdPrefix="@IdPrefix" Zone="Zone" Now="Now" />
+            </div>
+        </section>
+    }
+    else
+    {
+        <div class="facts-row">
+            <CodeCard Build="build" Context="@context" IdPrefix="@IdPrefix" Zone="Zone" Now="Now" />
+        </div>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardMonitor Monitor { get; set; } = default!;
+
+    /// <summary>True for a section with the dashboard's name as its heading; false for the card alone.</summary>
+    [Parameter]
+    public bool Heading { get; set; }
+
+    /// <summary>Prefix of the element ids, unique on the page.</summary>
+    [Parameter, EditorRequired]
+    public string IdPrefix { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+}

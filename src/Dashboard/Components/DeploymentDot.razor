@@ -1,0 +1,28 @@
+@* The dot of a deployment's mark. The shape says the state as well as the colour: filled (and pulsing where motion is
+   welcome) for one that is executing, hollow for one that is queued, a dot in a ring for one that waits for a person,
+   small and still for one that ended. The sentence stands next to it. *@
+<svg class="deploy-dot deploy-dot--@DeploymentText.Shape(State)" viewBox="0 0 12 12" width="12" height="12"
+     aria-hidden="true" focusable="false">
+    @switch (State)
+    {
+        case DeploymentState.Executing:
+            <circle class="deploy-dot__pulse" cx="6" cy="6" r="5" />
+            <circle class="deploy-dot__fill" cx="6" cy="6" r="5" />
+            break;
+        case DeploymentState.Queued:
+            <circle class="deploy-dot__ring" cx="6" cy="6" r="4.25" />
+            break;
+        case DeploymentState.Waiting:
+            <circle class="deploy-dot__ring" cx="6" cy="6" r="5.25" />
+            <circle class="deploy-dot__fill" cx="6" cy="6" r="2.25" />
+            break;
+        default:
+            <circle class="deploy-dot__fill" cx="6" cy="6" r="2.5" />
+            break;
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public DeploymentState State { get; set; }
+}
