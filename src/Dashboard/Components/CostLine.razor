@@ -9,7 +9,7 @@
     }
     @if (Report.AsOf is { } day)
     {
-        <span class="cost__part cost__as-of">as of <time datetime="@CostText.Date(day)">@CostText.Date(day)</time></span>
+        <span class="cost__part cost__as-of">as of <time datetime="@CostText.Date(day)">@CostText.Date(day)</time> (@CostText.DayZone)</span>
     }
     @if (CostText.Services(Services, Report, Now) is { } services)
     {

@@ -30,7 +30,14 @@ public sealed record SystemInfo(
     Uri? DeliveryUrl = null,
     Uri? CostUrl = null,
     DashboardInfo? Dashboard = null,
-    Uri? DeploymentsUrl = null);
+    Uri? DeploymentsUrl = null)
+{
+    /// <summary>
+    /// Where the browser reads what Resource Health said of the system's resources: <c>containers.json</c>, which the
+    /// same workflow publishes next to the delivery facts; null without them.
+    /// </summary>
+    public Uri? ContainersUrl => DeliveryUrl is null ? null : new Uri(DeliveryUrl, "containers.json");
+}
 
 /// <summary>
 /// The dashboard itself as a deployable of the system (<c>system.dashboard</c> of <c>topology.json</c>): this page.
@@ -57,6 +64,7 @@ public sealed record DashboardInfo(string Name, string BuildPath)
 /// The namespace of the cluster that holds the environment's pods: the cluster view lists its pods under the
 /// environment. Null where the system runs in no cluster.
 /// </param>
+/// <param name="Pages">Pages of the system itself in this environment (<see cref="PageLink"/>); null without any.</param>
 public sealed record EnvironmentInfo(
     string Name,
     string? Tier,
@@ -64,7 +72,23 @@ public sealed record EnvironmentInfo(
     Uri? VersionsUrl = null,
     Uri? VersionsHistoryUrl = null,
     LinkSet? Links = null,
-    string? Namespace = null);
+    string? Namespace = null,
+    IReadOnlyList<PageLink>? Pages = null);
+
+/// <summary>
+/// A page of the system itself that the environment's part of the dashboard leads to
+/// (<c>environments[].pages</c> of <c>topology.json</c>): a deployable of the system names it
+/// (<c>dashboardLink</c> in <c>system.json</c>), and the deployment writes the address the deployable has in this
+/// environment. It is public like the page it is on, so its tooltip names no sign-in.
+/// </summary>
+/// <param name="Name">The words of the link.</param>
+/// <param name="Url">Where it leads.</param>
+/// <param name="Deployable">The deployable whose page it is; null when the topology does not say.</param>
+public sealed record PageLink(string Name, Uri Url, string? Deployable = null)
+{
+    /// <summary>The link's tooltip: its words, and that it opens a new tab.</summary>
+    public string Title => Name + LinkText.GitHubSuffix;
+}
 
 /// <summary>
 /// The Kubernetes cluster of the system (<c>cluster</c> of <c>topology.json</c>): the two public files the cluster

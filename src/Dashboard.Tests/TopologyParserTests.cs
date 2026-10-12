@@ -88,6 +88,45 @@ public class TopologyParserTests
     }
 
     [Fact]
+    public void AnEnvironmentMayNamePagesOfTheSystemItself()
+    {
+        var environments = Valid("""
+            { "environments": [
+              { "name": "tdd", "deployables": [],
+                "pages": [ { "name": "Scorecard", "url": " https://ca-demo-tdd-scorecard.example.net/scorecard ", "deployable": "scorecard" },
+                           { "name": "Reports", "url": "https://reports.example.net/" } ] },
+              { "name": "uat", "deployables": [] },
+              { "name": "prod", "deployables": [], "pages": [] } ] }
+            """).Environments;
+
+        Assert.Equal(
+            [
+                new PageLink("Scorecard", new Uri("https://ca-demo-tdd-scorecard.example.net/scorecard"), "scorecard"),
+                new PageLink("Reports", new Uri("https://reports.example.net/")),
+            ],
+            environments[0].Pages);
+        Assert.Equal("Scorecard (opens in a new tab)", environments[0].Pages![0].Title);
+        Assert.Null(environments[1].Pages);
+        Assert.Null(environments[2].Pages);
+    }
+
+    [Fact]
+    public void APageWithoutANameOrAnAddressIsLeftOutAndTheDashboardIsStillShown()
+    {
+        var pages = Valid("""
+            { "environments": [ { "name": "tdd", "deployables": [], "pages": [
+              { "name": "No address" },
+              { "url": "https://no-name.example.net/" },
+              { "name": "A script", "url": "javascript:alert(1)" },
+              { "name": "A path", "url": "/scorecard" },
+              "not an object",
+              { "name": "Scorecard", "url": "https://ca-demo-tdd-scorecard.example.net/" } ] } ] }
+            """).Environments[0].Pages;
+
+        Assert.Equal([new PageLink("Scorecard", new Uri("https://ca-demo-tdd-scorecard.example.net/"), null)], pages);
+    }
+
+    [Fact]
     public void TheOctopusProjectAddressKeepsItsFragment()
     {
         var deployable = Valid("""

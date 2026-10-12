@@ -8,10 +8,15 @@ namespace Dashboard.Runtime;
 /// relationship, keyed by the manifest's aliases and ids. The C# side decides every word and every state; the script
 /// only draws. Serialized with <see cref="RuntimePayloadJson"/> (camelCase, nulls left out).
 /// </summary>
+/// <param name="Names">
+/// The boxes that have a name and no tile or mark (the frames that are no region, the browser), each with where its
+/// name leads; null when the manifest has a link for none of them.
+/// </param>
 public sealed record RuntimePayload(
     IReadOnlyList<RuntimeTile> Nodes,
     IReadOnlyList<RuntimeRegionMark> Regions,
-    IReadOnlyList<RuntimeEdgeMark> Edges)
+    IReadOnlyList<RuntimeEdgeMark> Edges,
+    IReadOnlyList<RuntimeName>? Names = null)
 {
     public string ToJson() => JsonSerializer.Serialize(this, RuntimePayloadJson.Default.RuntimePayload);
 }
@@ -71,7 +76,10 @@ public sealed record RuntimeTrend(IReadOnlyList<double> Points, string Title)
 /// <param name="Text">The words.</param>
 /// <param name="Tone">
 /// <c>strong</c> (the running version), <c>plain</c>, <c>muted</c>, <c>serving</c>, and for the comparison with the pinned
-/// version <c>insync</c>, <c>differs</c> or <c>unknown</c> (drawn with the dashboard's =, ≠ and dots).
+/// version <c>insync</c>, <c>differs</c> or <c>unknown</c> (drawn with the dashboard's =, ≠ and dots). An activity
+/// line (what is being deployed to the node's deployable, a deployment freeze, the last deployment that ended) has
+/// its kind as its tone: <c>waiting</c>, <c>deploying</c>, <c>queued</c>, <c>frozen</c>, <c>freeze</c>,
+/// <c>deployed</c>, <c>failed</c> or <c>canceled</c> (<see cref="Health.ActivityKind"/>).
 /// </param>
 /// <param name="Parts">
 /// The same words in pieces, where a piece is a link; null for a line without links, which is drawn from
@@ -103,7 +111,13 @@ public sealed record RuntimeCheckMark(string State, string Title);
 
 /// <param name="State"><c>serving</c>, <c>standby</c>, <c>down</c>, <c>checking</c> or <c>neutral</c>.</param>
 /// <param name="Label">The words of the region's mark.</param>
-public sealed record RuntimeRegionMark(string Alias, string State, string Label);
+/// <param name="NameLink">Where the region's name leads; null without a link.</param>
+public sealed record RuntimeRegionMark(string Alias, string State, string Label, RuntimeLink? NameLink = null);
+
+/// <summary>A box whose name is a link and that has nothing else to update: a frame, or the browser.</summary>
+/// <param name="Alias">The frame's or the node's alias.</param>
+/// <param name="NameLink">Where its name, and a click on the box, leads.</param>
+public sealed record RuntimeName(string Alias, RuntimeLink NameLink);
 
 /// <param name="Id">The relationship's id.</param>
 /// <param name="State"><c>active</c> (carries the traffic), <c>idle</c>, <c>down</c>, <c>checking</c> or <c>neutral</c>.</param>

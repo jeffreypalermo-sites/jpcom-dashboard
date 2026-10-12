@@ -1,13 +1,25 @@
 @* Where an environment's resources are, when the topology says so: plain links that open the Azure portal in a new
-   tab. The portal asks the viewer to sign in; the dashboard itself never calls it. *@
-@if (Links is { Count: > 0 } links && Entries.Any(entry => links[entry.Key] is not null))
+   tab. The portal asks the viewer to sign in; the dashboard itself never calls it. After them, the pages of the system
+   itself that the topology names for the environment (a deployable's dashboardLink): public pages, in a new tab too. *@
+@if (HasLinks || HasPages)
 {
-    <p class="resource-links" aria-label="@($"Resources of {Environment} in the Azure portal")">
-        @foreach (var (key, text) in Entries)
+    <p class="resource-links" aria-label="@Label">
+        @if (Links is { } links)
         {
-            if (links[key] is { } address)
+            foreach (var (key, text) in Entries)
             {
-                <a href="@address.AbsoluteUri" target="_blank" rel="noopener" title="@LinkText.For(key, Environment)">@text</a>
+                if (links[key] is { } address)
+                {
+                    <a href="@address.AbsoluteUri" target="_blank" rel="noopener" title="@LinkText.For(key, Environment)">@text</a>
+                }
+            }
+        }
+        @if (Pages is { } pages)
+        {
+            @* "own", not "page": @page is a directive of Razor. *@
+            foreach (var own in pages)
+            {
+                <a class="resource-links__page" href="@own.Url.AbsoluteUri" target="_blank" rel="noopener" title="@own.Title">@own.Name</a>
             }
         }
     </p>
@@ -25,6 +37,20 @@
     [Parameter]
     public LinkSet? Links { get; set; }
 
+    [Parameter]
+    public IReadOnlyList<PageLink>? Pages { get; set; }
+
     [Parameter, EditorRequired]
     public string Environment { get; set; } = default!;
+
+    private bool HasLinks => Links is { Count: > 0 } links && Entries.Any(entry => links[entry.Key] is not null);
+
+    private bool HasPages => Pages is { Count: > 0 };
+
+    private string Label => (HasLinks, HasPages) switch
+    {
+        (true, true) => $"Resources of {Environment} in the Azure portal, and pages of the system there",
+        (false, true) => $"Pages of the system in {Environment}",
+        _ => $"Resources of {Environment} in the Azure portal",
+    };
 }

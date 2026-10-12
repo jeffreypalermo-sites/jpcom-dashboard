@@ -37,6 +37,12 @@ public sealed record DeliveryReport(DateTimeOffset? Generated, IReadOnlyList<Del
     public HealthReports? HealthOf(string environment) =>
         Environments.FirstOrDefault(entry => string.Equals(entry.Name, environment, StringComparison.OrdinalIgnoreCase))?.Health;
 
+    /// <summary>
+    /// What the hourly health reports found for the container apps of an environment; null when the file does not say
+    /// (a file from before it did, or one whose system could not read the reports' logs).
+    /// </summary>
+    public IReadOnlyList<ContainerAppReports>? ContainerAppsOf(string environment) => HealthOf(environment)?.ContainerApps;
+
     /// <summary>The name of the entry of the system project itself.</summary>
     public const string SystemName = "system";
 
@@ -88,13 +94,17 @@ public sealed record DeliveryEnvironment(string Name, IReadOnlyList<DeliveryEntr
 /// <param name="Last24Hours">The reports of the last 24 hours.</param>
 /// <param name="Last7Days">The reports of the last seven days.</param>
 /// <param name="LastFailure">When the last report that failed ended; null when none did in seven days.</param>
-public sealed record HealthReports(HealthWindow? Last24Hours, HealthWindow? Last7Days, DateTimeOffset? LastFailure)
+/// <param name="ContainerApps">
+/// What the reports found for each container app of the environment (<c>containerApps</c>); null when the file does
+/// not say, also where the environment has no container app.
+/// </param>
+public sealed record HealthReports(HealthWindow? Last24Hours, HealthWindow? Last7Days, DateTimeOffset? LastFailure, IReadOnlyList<ContainerAppReports>? ContainerApps = null)
 {
     internal static HealthReports? Read(JsonElement? section)
     {
         var day = HealthWindow.Read(JsonRead.Section(section, "last24Hours"));
         var week = HealthWindow.Read(JsonRead.Section(section, "last7Days"));
-        return day is null && week is null ? null : new HealthReports(day, week, JsonRead.Time(section, "lastFailure"));
+        return day is null && week is null ? null : new HealthReports(day, week, JsonRead.Time(section, "lastFailure"), ContainerAppReports.ReadAll(section));
     }
 }
 
@@ -123,6 +133,10 @@ public sealed record HealthWindow(int Reports, int Healthy)
 /// <param name="DeploymentsLast7Days">Deployments of the deployable to the environment in the last seven days.</param>
 /// <param name="FailedLast7Days">Of those, the failed ones.</param>
 /// <param name="ReleaseUrl">The release's page.</param>
+/// <param name="LastPersonSignOff">
+/// The newest deployment a person signed off: this one or an older one. Null when no person signed one off, in the
+/// first environment and when the file does not say.
+/// </param>
 public sealed record DeliveryEntry(
     string Name,
     string? Version,
@@ -135,7 +149,8 @@ public sealed record DeliveryEntry(
     BehindFirst? Behind,
     int? DeploymentsLast7Days,
     int? FailedLast7Days,
-    Uri? ReleaseUrl)
+    Uri? ReleaseUrl,
+    PersonSignOff? LastPersonSignOff = null)
 {
     internal static DeliveryEntry? Read(JsonElement element)
     {
@@ -157,7 +172,31 @@ public sealed record DeliveryEntry(
             behind is null ? null : new BehindFirst(JsonRead.Count(behind, "versions"), JsonRead.Number(behind, "days")),
             JsonRead.Count(element, "deploymentsLast7Days"),
             JsonRead.Count(element, "failedLast7Days"),
-            JsonRead.Address(element, "releaseUrl"));
+            JsonRead.Address(element, "releaseUrl"),
+            PersonSignOff.Read(JsonRead.Section(element, "lastPersonSignOff")));
+    }
+}
+
+/// <summary>
+/// The newest successful deployment of a deployable to an environment that a person signed off
+/// (<c>lastPersonSignOff</c> of an entry in <c>delivery.json</c>). Automation signs off most deployments, and the next
+/// one would take a person's sign-off off the card: this keeps it.
+/// </summary>
+/// <param name="Version">The version that deployment deployed.</param>
+/// <param name="By">The person, by their user name in Octopus Deploy.</param>
+/// <param name="At">When they signed it off.</param>
+/// <param name="Reason">The note they gave with it; null when they gave none.</param>
+/// <param name="ReleaseUrl">The page of that release.</param>
+public sealed record PersonSignOff(string? Version, string? By, DateTimeOffset? At, string? Reason, Uri? ReleaseUrl)
+{
+    /// <summary>The sign-off; null unless it names a version or a person.</summary>
+    internal static PersonSignOff? Read(JsonElement? section)
+    {
+        var version = VersionText.Display(JsonRead.Text(section, "version"));
+        var by = JsonRead.Text(section, "by");
+        return version is null && by is null
+            ? null
+            : new PersonSignOff(version, by, JsonRead.Time(section, "at"), JsonRead.Text(section, "reason"), JsonRead.Address(section, "releaseUrl"));
     }
 }
 
@@ -281,6 +320,10 @@ public static class DeliveryText
     /// <summary>Whose delivery a card shows: <c>ui in uat</c>; the system project by what it is.</summary>
     public static string Context(string name, string environment) =>
         DeliveryReport.IsSystem(name) ? $"the system (infrastructure and pipeline) in {environment}" : $"{name} in {environment}";
+
+    /// <summary>What "Last by a person" is, for the tooltip.</summary>
+    public const string PersonSignOffHelp =
+        "The newest deployment here that a person signed off; automation signs off the others with a recorded reason";
 
     /// <summary>What "behind" counts, for the tooltip.</summary>
     public static string BehindHelp(string first) =>

@@ -17,7 +17,8 @@
         </label>
         @if (Running)
         {
-            <button type="button" class="button" @onclick="StopAsync">Stop traffic</button>
+            @* Once nothing more is sent there is nothing to stop: the panel waits for the answers on their way. *@
+            <button type="button" class="button" disabled="@(!_count.Sending)" @onclick="StopAsync">Stop traffic</button>
         }
         else
         {
@@ -25,14 +26,6 @@
         }
         <span class="traffic__status" role="status">@StatusText</span>
     </div>
-    <p class="help">
-        @if (Selected is { } selected)
-        {
-            @($"{TrafficPlan.PerSecond} requests a second for {TrafficPlan.Seconds} s from this browser to {string.Join(", ", selected.Targets)}: ")
-        }
-        the start page and the app's representative reads, so the calls go @Route. The numbers count the last minute
-        and appear with the next check; during the traffic the page checks every @TrafficPlan.CheckEverySeconds s.
-    </p>
 </section>
 
 @code {
@@ -43,7 +36,7 @@
     private string? _environment;
     private bool _chosen;
     private IJSObjectReference? _module;
-    private int[] _status = [0, 0, 0, 1];
+    private TrafficCount _count = TrafficCount.None;
     private DateTimeOffset? _started;
     private bool _pressed;
     private bool _stopRequested;
@@ -75,12 +68,11 @@
     [Parameter]
     public EventLog? Events { get; set; }
 
-    /// <summary>The way a call takes; Front Door is named only where the topology has one somewhere.</summary>
-    private string Route => Monitor.Topology.HasFrontDoor
-        ? "browser, Front Door, the origin that serves, the database"
-        : "browser, the app, the database";
-
-    private bool Running => _pressed && _status[3] == 0;
+    /// <summary>
+    /// True from the press until the run is over: while requests are sent, and after that while answers are on
+    /// their way (<see cref="TrafficCount.Over"/>).
+    /// </summary>
+    private bool Running => _pressed && !_count.Over;
 
     private TrafficPlan? Selected => _plans.FirstOrDefault(plan => plan.Environment == _environment);
 
@@ -93,15 +85,7 @@
                 return Selected is null ? "No environment has an address to call." : string.Empty;
             }
 
-            var (sent, answered, failed) = (_status[0], _status[1], _status[2]);
-            var counts = $"{sent} sent, {answered} answered{(failed > 0 ? $", {failed} failed" : string.Empty)}";
-            if (!Running)
-            {
-                return $"Done: {counts}.";
-            }
-
-            var left = Math.Max(0, TrafficPlan.Seconds - (int)(Time.GetUtcNow() - _started!.Value).TotalSeconds);
-            return $"{counts}; {left} s left.";
+            return _count.Status(Math.Max(0, TrafficPlan.Seconds - (int)(Time.GetUtcNow() - _started!.Value).TotalSeconds));
         }
     }
 
@@ -128,10 +112,11 @@
         }
 
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/traffic.js");
-        await _module.InvokeVoidAsync("start", plan.Addresses.Select(address => address.AbsoluteUri).ToArray(), TrafficPlan.PerSecond, TrafficPlan.Seconds);
+        await _module.InvokeVoidAsync(
+            "start", plan.Addresses.Select(address => address.AbsoluteUri).ToArray(), TrafficPlan.PerSecond, TrafficPlan.Seconds, TrafficPlan.AnswerWithinSeconds);
         _pressed = true;
         _started = Time.GetUtcNow();
-        _status = [0, 0, 0, 0];
+        _count = TrafficCount.Started;
         _stopRequested = false;
         _running = plan;
         Events?.Add(EventDetector.Traffic(
@@ -142,7 +127,10 @@
         _ = FollowAsync();
     }
 
-    /// <summary>Reads the counts every second while the traffic runs, and asks for checks every few seconds.</summary>
+    /// <summary>
+    /// Reads the counts every second until the run is over, which is after the last answer and not after the last
+    /// request, and asks for checks every few seconds.
+    /// </summary>
     private async Task FollowAsync()
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), Time);
@@ -151,7 +139,7 @@
         {
             while (await timer.WaitForNextTickAsync(_stopping.Token))
             {
-                _status = await _module!.InvokeAsync<int[]>("status", _stopping.Token);
+                _count = TrafficCount.From(await _module!.InvokeAsync<int[]>("status", _stopping.Token));
                 if (++ticks % TrafficPlan.CheckEverySeconds == 0 || !Running)
                 {
                     await CheckNow.InvokeAsync();
@@ -176,7 +164,7 @@
         }
     }
 
-    /// <summary>Writes the end of a run to the log, once: by itself after its minute, or stopped by the viewer.</summary>
+    /// <summary>Writes the end of a run to the log, once: by itself after its last answer, or stopped by the viewer.</summary>
     private void Ended()
     {
         if (_running is not { } plan)
@@ -185,9 +173,7 @@
         }
 
         _running = null;
-        var (sent, answered, failed) = (_status[0], _status[1], _status[2]);
-        var counts = $"{sent} sent, {answered} answered{(failed > 0 ? $", {failed} failed" : string.Empty)}";
-        Events?.Add(EventDetector.Traffic(plan.Environment, $"Traffic {(_stopRequested ? "stopped" : "ended")}: {counts}", Time.GetUtcNow()));
+        Events?.Add(EventDetector.Traffic(plan.Environment, _count.Ended(_stopRequested), Time.GetUtcNow()));
     }
 
     private async Task StopAsync()

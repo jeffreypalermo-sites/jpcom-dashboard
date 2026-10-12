@@ -32,7 +32,8 @@
                     @onclick="() => _fit = !_fit">@(_fit ? "Actual size" : "Fit to width")</button>
             @* What is being deployed to the shown environment: the system's own release marks the environment here, a
                deployable's also the nodes of the diagram. *@
-            <DeploymentMarks Marks="Deploying" Label="@($"Deployments to {Current?.Name}")" Generated="Monitor.Deployments?.Generated" Zone="Zone" />
+            <DeploymentMarks Marks="Deploying" Activity="@(Current is { } named ? Monitor.EnvironmentActivity(named.Name, Deploying, Now, Zone) : [])"
+                             Label="@($"Deployments to {Current?.Name}")" Generated="Monitor.Deployments?.Generated" Zone="Zone" />
         }
     </header>
 
@@ -65,57 +66,6 @@
     }
     else
     {
-        <p class="help runtime__help">
-            @* Front Door, its route and the regions are named only where the topology has a Front Door somewhere. *@
-            @if (Monitor.Topology.HasFrontDoor)
-            {
-                <text>
-                    Live, from the checks of this page: the state of every web app and Front Door endpoint, which region serves
-                    traffic, the route Front Door takes and the versions next to the pinned ones. Drawn when the dashboard was
-                    deployed: the resources, their names, sizes and regions. The database takes no call from the browser: it is
-                    reachable when the health check of a web app that uses it passes. Calls per minute are the last minute as each
-                    web app counts it (its <code>/_telemetry</code>): requests Front Door forwarded, Front Door's health probes and
-                    SQL commands; a dash where a web app reports none.
-                </text>
-            }
-            else
-            {
-                <text>
-                    Live, from the checks of this page: the state of every web app, whether it serves traffic and the versions
-                    next to the pinned ones. Drawn when the dashboard was deployed: the resources, their names and sizes. The
-                    database takes no call from the browser: it is reachable when the health check of a web app that uses it
-                    passes. Calls per minute are the last minute as each web app counts it (its <code>/_telemetry</code>):
-                    requests and SQL commands; a dash where a web app reports none.
-                </text>
-            }
-            "Generate traffic" at the bottom of the page makes them move.
-            @* Said only where the system has them: the marks of a detailed health check, a dependency outside Azure. *@
-            @if (Monitor.Topology.Environments.Any(environment => environment.Deployables.Any(deployable => deployable.HealthDetailPath is not null)))
-            {
-                <text>
-                    The row of small marks on a web app is its health check entry by entry (with the probe Health check): a
-                    check, a warning triangle or a cross for each thing it checks; hover a mark for its name and its words.
-                </text>
-            }
-            @if (_diagram is { IsValid: true, Manifest: { } drawn } && drawn.Nodes.Any(node => node.Kind == RuntimeNodeKind.Dependency))
-            {
-                <text>
-                    A box outside the subscription is something a web app depends on and the system does not own: the browser
-                    does not call it, and its state is what the web apps' health checks say about it.
-                </text>
-            }
-            @* Said only where the topology names the deployments file. *@
-            @if (Monitor.Topology.System.DeploymentsUrl is not null)
-            {
-                <text>
-                    A dot in the corner of a node, and next to an environment's name above, marks a deployment, as the system
-                    last read it from Octopus Deploy (minutes old): filled while it runs, hollow while it is queued, a dot in a
-                    ring while it waits for a sign-off, small for ten minutes after it ended; hover it for the words.
-                </text>
-            }
-            The small line next to a number is its trend over the last checks of this page. An underlined number or name
-            is a link: it opens the Azure portal or Octopus Deploy in a new tab, which ask you to sign in.
-        </p>
         @if (_diagram is { IsValid: false } broken)
         {
             <section class="problem" role="alert">
@@ -158,7 +108,7 @@
         @if (Shown is { } facts)
         {
             <section class="runtime__facts" aria-label="@($"Availability, cost, code and delivery of {facts.Name}")">
-                <EnvironmentLinks Links="facts.Info.Links" Environment="@facts.Name" />
+                <EnvironmentLinks Links="facts.Info.Links" Pages="facts.Info.Pages" Environment="@facts.Name" />
                 @if (Monitor.Delivery is { } delivered && delivered.HealthOf(facts.Name) is { } reports)
                 {
                     <AvailabilityLine Reports="reports" Label="@($"Availability of {facts.Name}")" Changed="delivered.Generated" Zone="Zone" Now="Now" />
@@ -220,6 +170,13 @@
     [Parameter]
     public EventCallback<string> EnvironmentChanged { get; set; }
 
+    /// <summary>
+    /// Raised when the diagram shows a container app the page never probed, or Resource Health it never read: the page
+    /// then checks at once instead of at its next round.
+    /// </summary>
+    [Parameter]
+    public EventCallback ProbesDue { get; set; }
+
     /// <summary>The page's own address: the static site that serves it is "this page".</summary>
     [Parameter, EditorRequired]
     public Uri Page { get; set; } = default!;
@@ -251,6 +208,8 @@
     public async ValueTask DisposeAsync()
     {
         await _stopping.CancelAsync();
+        // The container apps are probed only while the runtime view shows them.
+        Monitor.Watch(RuntimeWatch.None);
         if (_module is { } module)
         {
             try
@@ -293,7 +252,13 @@
     {
         if (_diagram is not { IsValid: true } diagram)
         {
+            Monitor.Watch(RuntimeWatch.None);
             return;
+        }
+
+        if (Monitor.Watch(RuntimePayloadBuilder.Watch(diagram.Manifest!)))
+        {
+            await ProbesDue.InvokeAsync();
         }
 
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/runtime.js");
@@ -314,7 +279,18 @@
         }
 
         var environment = Shown;
-        var payload = RuntimePayloadBuilder.Build(diagram.Manifest!, environment, Page, Zone, Deploying).ToJson();
+        var shown = diagram.Manifest!.Environment;
+        var payload = RuntimePayloadBuilder.Build(
+            diagram.Manifest!,
+            environment,
+            Page,
+            Zone,
+            Deploying,
+            Monitor.Deployments is null ? null : deployable => Monitor.NodeActivity(shown, deployable, Now, Zone),
+            Monitor.Delivery,
+            Now,
+            Monitor.ContainerAppStatusOf,
+            Monitor.ResourceHealth).ToJson();
         if (payload == _lastPayload)
         {
             return;

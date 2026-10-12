@@ -24,9 +24,10 @@ For each environment (tdd, uat, prod) and each deployable in it, the health view
   app that answers a detailed health check, one mark per thing it checks (its database, a gateway it calls), so an
   unhealthy tile says which of them failed (see "Health checks, entry by entry");
 - per deployable, a "Code" card (the build its primary node runs: commit, lines of code by language, tests, coverage,
-  complexity, CRAP, Qodana) and a "Delivery" card (deployed when, signed off by whom, lead time, how far behind the
-  first environment), each only when its source answers; and after the environments the "Code" card of the dashboard
-  itself, the build that serves the page (see "The dashboard's own build");
+  complexity, CRAP, Qodana) and a "Delivery" card (deployed when, signed off by whom, the last deployment a person
+  signed off, lead time, how far behind the first environment), each only when its source answers; and after the
+  environments the "Code" card of the dashboard itself, the build that serves the page (see "The dashboard's own
+  build");
 - under each environment's name, what it cost in Azure (the last complete day, seven days, the month so far, and the
   services that cost most), after the environments the same for what they share, and in the header for the whole
   system: a day old, and said so (see "Cost");
@@ -39,7 +40,7 @@ For each environment (tdd, uat, prod) and each deployable in it, the health view
   health check that changed, restarts, deployments, failovers, pins, traffic, and for a system with a cluster what
   changed in it);
 - where the topology has a link for it, every number and name leads to its place in the Azure portal or in Octopus
-  Deploy;
+  Deploy; in the runtime view every box leads to what it stands for, by a click anywhere on it (see "Links");
 - which region is expected to serve the traffic, a "Failed over to <region>" banner when the primary is not healthy
   but a standby is, and whether the Front Door endpoint agrees;
 - the version the last deployment pinned in Git next to the versions the nodes run ("Pinned 2.4.7. In sync: all 2
@@ -52,6 +53,35 @@ For each environment (tdd, uat, prod) and each deployable in it, the health view
 The browser holds no secret: it reads public addresses only (the nodes' health, detailed health, version, telemetry
 and build endpoints and public files on GitHub), and the links to the Azure portal, Octopus Deploy and GitHub are
 plain links that ask the viewer to sign in there.
+
+## How it looks, and why
+
+The page wears the two brands the fleet health dashboard wears (`cmfleet-dashboard`, "How it looks, and why"), so a
+system's dashboard and the fleet's read as one family (Jeffrey Palermo, 2026-10-09: "They need to have same branding
+as fleet dashboard and look like they belong with clear measure and octopus").
+
+| Part | From | In the page |
+|---|---|---|
+| Navy surfaces, one line colour, cards with a thin border and a 4 px radius, no shadow; blue links | Octopus Deploy's dark screens | `--page` `#111a23`, `--bar` `#1f303f`, `--raised` `#1f303f`, `--hover` `#24394b`, `--hairline` `#2e475d`, `--border-strong` `#557c9e`, `--ink` `#f4f6f8`, `--ink-secondary` `#9fb3c5`, `--link` `#87bfec` in `wwwroot/css/app.css` |
+| Green for healthy, orange for what needs attention, red for what failed | Octopus | `--good` `#00ab62` (`#00874d` under white words), `--serious` `#f58d3a`, `--critical` `#d63d3d` (`#ff7a7a` for red words on the page) |
+| The logo in the bar across the top, and its mark as the page's icon | Clear Measure | `wwwroot/clear-measure-logo-white.png`, `wwwroot/favicon.png`; the bar is part of `index.html`, so it is there while the application loads |
+| The navy of the diagram's boxes, the deep navy of what the page does not ask, the primary blue of what is selected or focused and of the diagram's frames and arrows, the yellow of what differs or warns in a tile, the sky blue of a deployment in flight | Clear Measure's palette as clearmeasure.com carries it | `--cm-blue` `#004b87`, `--cm-deep` `#043e6c`, `--cm-primary` `#0085ca`, `--cm-yellow` `#eecb1a`, `--cm-sky` `#24abe1`, `--cm-light-blue` `#cfeaff` |
+| Headings, the tabs and the bar's label in Jost (weights 500 to 700; then Futura, Century Gothic, Trebuchet MS) | Clear Measure's site is set in Futura and loads Jost as the face a browser can get | `--display` |
+| Everything else in Roboto (400, 500, 700): text, numbers, names of resources | Octopus's type | `--font`, `--font-data`; only `code` keeps a fixed pitch |
+
+There is one theme, the dark one of the screen it mimics: no light values and no `prefers-color-scheme`. A colour
+keeps what it meant before: the states (healthy, unhealthy, unreachable, pending), the mark of a deployment and the
+five colours of the language bar each took the nearest colour of the two brands. Words are at least 4.5 to 1 on what
+they stand on: white on the navy box is 8.9 to 1, the yellow of a line that differs 5.8 to 1 on it, the muted ink 7.9
+to 1 on the page, and the word of a badge (Octopus's strong green, its red) 4.6 to 1 on the badge's white. A selected
+button is the navy with the primary blue as its edge, because white on the primary blue alone is 4.0 to 1.
+
+The two faces are files of the page (`wwwroot/fonts`, the `@font-face` rules at the top of `app.css`): the Latin part
+of Jost as one variable file and of Roboto in its three weights, each under the SIL Open Font License, whose text is
+beside them. The page asks no other site for them (until 2026-10-10 it loaded both from Google Fonts, which told
+Google of every visit); a character outside the Latin part is drawn in the fallbacks. Where a brand
+guide says otherwise, the variables at the top of `wwwroot/css/app.css` are the one place to change, and the
+diagram's colours are under "The diagram's colours" there.
 
 Everything beyond the health checks is optional. A source that is absent or cannot be read (an older app without the
 endpoint, a file that is not published yet, a topology without the field) is never an error: its element is not
@@ -138,6 +168,7 @@ topology" is pressed. The deployment writes the real file; the build does not kn
 | `environments[].versionsUrl` | no, may be `null` | No pinned versions for this environment: nothing is read and nothing is compared (but for a deployable with `pinUrl`). |
 | `environments[].versionsHistoryUrl` | no, may be `null` | No "Pin history" link (but for a deployable with `pinHistoryUrl`). |
 | `environments[].links` | no | No links to the environment's resources (see "Links"). Keys: `applicationInsights`, `applicationMap`, `database`, `resourceGroup`. |
+| `environments[].pages` | no | No link to a page of the system itself (see "Links"). A list of `{ "name", "url", "deployable" }`: the words of the link, an absolute http(s) address, and the deployable whose page it is. An entry without a name or with anything else as its address is left out, and the page is shown all the same. |
 | `environments[].namespace` | no, may be `null` | The cluster view has no group for this environment: the pods of its namespace are listed with the platform's. |
 | `environments[].deployables` | no | The environment is shown without tiles. |
 | `deployables[].name` | no | `app`. It is also the deployable's key in `versions.json`. |
@@ -302,8 +333,9 @@ sites), the App Service plans with their size, the web apps, the Front Door endp
 dashboard's Static Web App and the browser, with the relationships between them. One button per environment selects
 the diagram, which opens fitted to the page (down to 70 % of its size, where the tiles' words are 8 px high; below
 that, and at its actual size, it scrolls sideways inside its own frame). The button at the right names what a press
-does: "Actual size" while the diagram is fitted, "Fit to width" while it is not. The diagram is a light sheet in the
-dark theme too. A system whose deployable declares what it depends on also has, outside the subscription, one box
+does: "Actual size" while the diagram is fitted, "Fit to width" while it is not. The diagram is drawn on the page's
+own navy: PlantUML renders it for a white sheet, and the style sheet gives every shape and word of it the page's
+colours, so a diagram a deployment rendered before needs no new render. A system whose deployable declares what it depends on also has, outside the subscription, one box
 per dependency, with an arrow from each of the deployable's web apps. The database is drawn in an environment that
 has one. An application that brings its own runtime ("An application that brings its own runtime", above) is drawn
 outside the subscription too, in a boundary of its own, because the deployment does not know where it runs: its
@@ -325,17 +357,20 @@ diagram in place:
 
 | Element | What it shows |
 |---|---|
-| Web app, Front Door endpoint | The box's colour and border by state (Healthy, Unhealthy, Unreachable, Checking), and a tile: the state's badge with its word, HTTP status and latency, the version, the last 30 checks. A web app also shows its version next to the pinned one ("pinned 2.4.21: in sync", "differs from pinned 2.4.21"), its own numbers where it reports them ("12 req/min · p95 85 ms" with the trend of the requests, "0 errors · 0 exceptions/min", "CPU 3.2 % · 412 MB · 2 in flight" with the trend of the CPU, "up 2 h" or "restarted 3 min ago") and its role ("primary: serves traffic", "standby: ready, no traffic"; the only node of a deployable without a Front Door endpoint has no role: "serves traffic", "not serving"), and last, where it answers a detailed health check, one small mark per entry with the summary in words ("8 checks healthy", "LlmGateway degraded", "2 of 8 checks not healthy"; see "Health checks, entry by entry"); the endpoint shows where it routes ("routes to eastus2 (failed over)") and whether it agrees with the web apps. |
-| Region of web apps | A mark with words: "serving traffic" (green frame), "standby: ready", "not serving" (red frame), by the same serving decision as the health view's banner. A region of the database and the static sites has a note in slate, in italics ("database: reachable; static sites: not probed"). |
+| Web app, Front Door endpoint | The box's colour and border by state (Healthy: the navy box in a green border; Unhealthy: a red wash in a dashed red border; Unreachable: the line colour in a dotted border; Checking: dashed), and a tile: the state's badge with its word, HTTP status and latency, the version, the last 30 checks. A web app also shows its version next to the pinned one ("pinned 2.4.21: in sync", "differs from pinned 2.4.21"), its own numbers where it reports them ("12 req/min · p95 85 ms" with the trend of the requests, "0 errors · 0 exceptions/min", "CPU 3.2 % · 412 MB · 2 in flight" with the trend of the CPU, "up 2 h" or "restarted 3 min ago") and its role ("primary: serves traffic", "standby: ready, no traffic"; the only node of a deployable without a Front Door endpoint has no role: "serves traffic", "not serving"), and last, where it answers a detailed health check, one small mark per entry with the summary in words ("8 checks healthy", "LlmGateway degraded", "2 of 8 checks not healthy"; see "Health checks, entry by entry"); the endpoint shows where it routes ("routes to eastus2 (failed over)") and whether it agrees with the web apps. |
+| Region of web apps | A mark with words: "serving traffic" (green frame), "standby: ready" (dashed frame), "not serving" (dashed red frame), by the same serving decision as the health view's banner. A region of the database and the static sites has a note in slate, in italics ("database: reachable; static sites: not probed"). |
 | Front Door to an origin | Solid and green while it carries the traffic, dotted grey while idle, dashed red when the origin is not healthy: a failover is the green line moving from priority 1 to priority 2. |
 | Web app to the database | Green from the web app that serves, dotted from the others. |
 | Number line of a relationship | Calls per minute of the last minute, in a solid frame, as the web apps count them: browser to Front Door (the sum of its origins' requests from Front Door), Front Door to an origin (its requests from Front Door; Front Door's health probes next to the role), web app to database (the SQL commands of its requests, with the background ones next to the role, "app queries · 55 background"; all SQL commands for an app that does not tell them apart), web app to dependency (the web app's outgoing HTTP calls, `http.perMinute`, when the web app has exactly one dependency; a dash, "not counted apart", when it has more, because the app counts them as one number). Next to the number, its trend over the last checks of this page. A dashed frame with "–" where no web app reports a number (no `telemetryPath`, or an app without the endpoint). |
-| Database | The browser cannot ask the database, but a web app's health check connects to it: "Reachable" (healthy) when the health check of a web app that uses it passes, with the queries per minute its web apps' traffic causes (the background ones are in the tooltip); "Not confirmed" (neutral) when none passes, since the web app may be the cause; "Not probed" (neutral) with the Liveness probe, which leaves the database alone. |
+| Database | The browser cannot ask the database, but a web app's health check connects to it: "Reachable" (healthy) when the health check of a web app that uses it passes, with the queries per minute its web apps' traffic causes (the background ones are in the tooltip); "Not confirmed" (neutral) when none passes, since the web app may be the cause. Where no web app tells (none this page checks uses it, or the probe is Liveness, which leaves the database alone) it says what Resource Health said of it (see "Resource Health"), or "Not probed" in a diagram from before the ids. |
 | Dependency (a box outside the subscription) | The browser does not call it; the entry of the web apps' detailed health check that the system names for it says its state. "Reachable" (healthy) when that entry is Healthy on a web app that passes its health check, with the entry's own words as the line ("Chat client is not configured"), or "westus3 reports it degraded" when another web app says otherwise; "Degraded" or "Unhealthy" (drawn as unhealthy) with the entry's words when no web app reaches it; and neutral with the reason otherwise: "Not known" (no web app answers the detailed health check, or it has no entry of that name), "Not confirmed" (the entry is healthy only on a web app that fails its own health check), "Not probed" (the system names no entry for it, or the probe is Liveness, which reads no entries). |
 | Web app to a dependency | Green from the web app that serves, dotted from the others, like the line to the database. |
 | Links | Where the topology has a link (see "Links"): a web app's badge (Live Metrics), its name (the web app in the portal), its version (the release in Octopus Deploy, or else the commit of its build), its requests (Performance) and its errors (Failures); the Front Door endpoint's and the database's name; the numbers on the arrows (Performance, the dependency calls, the requests in Logs). They are real `a` elements: underlined, in the order of the keyboard, each with a title that says where it goes. |
-| Static site | Neutral, "Not probed": the dashboard does not check itself. The static site that serves the page says "This page". |
-| Mark of a deployment | With `system.deploymentsUrl`: a small dot in the corner of the tile of every node whose deployable is being deployed to the shown environment (its web apps, its Front Door endpoint, the dashboard's static site), on a white disc so it reads on a box of any state. Its shape says the state, its tooltip the sentence, and it is a link to the task in Octopus Deploy where the file gives its address (see "Deployments in flight"). The node keeps its state: a deployment is no state of health. |
+| A box | Every box leads to what it stands for: its name is a link, and a click anywhere else on the box opens the same address in a new tab (see "Links", "Every box of the runtime view"). The frames too: the subscription, a resource group, the Front Door profile, a plan, a region. A click on a link inside a box (a badge, a number, the mark of a deployment) is that link's own. The box shows the pointer and lights up under it. |
+| Static site | The static site that serves the page says "This page"; another environment's, which the page does not ask, says what Resource Health said of it, or "Not probed" in a diagram from before the ids. |
+| Container app | The page's own probe of it, once a minute while it shows the diagram (see "The container apps of the system"): "Probing" and "Waking" (drawn as being checked), "Healthy", "Unhealthy", "Responding" (drawn as healthy: it answered, and the page cannot read its health) and "Not responding" (drawn as unreachable), with the HTTP status and latency, or "answered · 85 ms" where the page could not read the answer. Under its host name, for an app `system.json` declares, in words and without a colour, what the pipeline's hourly health report last found there and how long ago ("hourly: healthy, 40 min ago"; "no recent hourly check" when no report of the last two hours asked it), and of the reports of 24 hours and 7 days that asked it, how many found it healthy ("24 h: 23 of 24 · 7 d: 160 of 168"). The tooltip says what the page asked and when, and that the hourly lines are history, not monitoring. An app without a public address says what Resource Health said of it. |
+| Resource | What Azure Resource Health last said of the resources the box stands for, in words and without a colour: "Available", "Degraded", "Unavailable", "Provisioned" (Resource Health does not cover its type: the provisioning state succeeded) or "Not known", and "Resource Health, 40 min ago" (grey after two hours); a box of several says the most urgent word and the count of each ("2 available · 1 provisioned, 40 min ago"). See "Resource Health". |
+| Mark of a deployment | With `system.deploymentsUrl`: a small dot in the corner of the tile of every node whose deployable is being deployed to the shown environment (its web apps, its Front Door endpoint, the dashboard's static site), in the logo's sky blue on a dark disc in a white ring, so it reads on a box of any state. Its shape says the state, its tooltip the sentence, and it is a link to the task in Octopus Deploy where the file gives its address (see "Deployments in flight"). The node keeps its state: a deployment is no state of health. |
 
 A state is never colour alone: the badge has an icon and a word, the regions a word, the lines differ in dash and
 width. Hover a node or a line for its details.
@@ -384,7 +419,12 @@ The manifest maps each element's alias to what the browser knows, so the page ne
     { "alias": "dep_ui_LLM_gateway", "qualifiedName": "dep_ui_LLM_gateway", "kind": "dependency", "deployable": "ui",
       "name": "LLM gateway", "healthCheck": "LlmGateway", "dependencyKind": "external", "url": null }
   ],
-  "regions": [ { "alias": "region_primary", "qualifiedName": "sub.rg_tier.region_primary", "name": "westus3", "roles": [ "primary" ] } ],
+  "regions": [ { "alias": "region_primary", "qualifiedName": "sub.rg_tier.region_primary", "name": "westus3", "roles": [ "primary" ],
+                 "links": { "resources": "https://portal.azure.com/#@<tenant>/blade/HubsExtension/ArgQueryBlade/query/..." } } ],
+  "frames": [
+    { "alias": "rg_tier", "qualifiedName": "sub.rg_tier", "kind": "resourceGroup", "name": "rg-cmdemo2-nonprod",
+      "links": { "portal": "https://portal.azure.com/#@<tenant>/resource/subscriptions/<id>/resourceGroups/rg-cmdemo2-nonprod/overview" } }
+  ],
   "edges": [
     { "id": "fd_ui-to-app_ui_primary", "from": "fd_ui", "to": "app_ui_primary", "kind": "origin", "priority": 1 },
     { "id": "app_ui_primary-to-sqldb", "from": "app_ui_primary", "to": "sqldb", "kind": "sql" },
@@ -410,14 +450,23 @@ The manifest maps each element's alias to what the browser knows, so the page ne
   `fd_<d>-to-app_<d>_<n>` (kind `origin`, `priority` 1 for a node with the role `primary` and 2 for any other,
   since the deployment does not know how the application's public address routes), or `browser-to-app_<d>_<n>`
   without a public address. It has no relationship to the database.
-- **Kinds**: nodes `person`, `frontdoor`, `webapp`, `sql`, `staticsite`, `dependency`; relationships `public` (the
-  browser to a public address), `origin` (with its `priority`), `sql`, `dashboard`, `dependency`. An unknown kind is
-  drawn and not updated.
+- **Kinds**: nodes `person`, `frontdoor`, `webapp`, `sql`, `staticsite`, `dependency`, `containerapp`, `resource`;
+  relationships `public` (the browser to a public address), `origin` (with its `priority`), `sql`, `dashboard`,
+  `dependency`. An unknown kind is drawn and not updated.
+- **Probes and health** (decision 0038): a `containerapp` node may have `healthPath`, the path the page probes (a
+  plain path, else left out: the page asks the root), and any node may have `ids`, the Azure resource ids it stands
+  for, by which the page finds what Resource Health said of them in `containers.json` (see "Resource Health"). Both
+  are optional: a manifest from before them is drawn as before.
 - **A dependency** (`kind` `dependency`) also has `healthCheck`, the name of the entry of its web apps' detailed
   health check that tells its state (`null` when the system names none), and `dependencyKind`, what it is in the
   system's own words (`external`). It comes from `deployables[].dependencies` of `system.json`, a list of
   `{ "name": "LLM gateway", "healthCheck": "LlmGateway", "kind": "external" }`; a system without it has no such node
   and no such relationship, and its diagram is as before.
+- **Frames and links**: `frames` lists every frame that is no region, with its alias, its `kind` (`subscription`,
+  `resourceGroup`, `frontDoorProfile`, `plan`, `cluster`, `runtime`) and its name. A frame, a region and a node may
+  have `links`, a map of one key to an https address: where the box leads when the topology has no link for it (see
+  "Links", "Every box of the runtime view"). Both are optional: a manifest from before them is drawn as before, and
+  anything in `links` that is no https address is left out.
 - **Addresses**: `url` is the address the page checks (web app, Front Door endpoint: the same as in `topology.json`,
   which is how a node finds its checks) or, for a static site, the dashboard's address where the deployment knows it
   (its own environment's); `null` for the database, which the browser cannot probe, for a Front Door endpoint that
@@ -447,9 +496,12 @@ like any image, the page hides it and draws into its rectangle (`js/runtime.js`)
 (and when opened on its own) is neutral. The sizes are set in `deploy-staticwebapp.ps1`: a web app's slot is 232 by
 146 (the badge, seven lines 15 px apart and the history strip), and 232 by 161 for a deployable with
 `healthDetailPath` (an eighth line: the marks of its health check); a Front Door endpoint's 232 by 98; a database's,
-a static site's and a dependency's 232 by 46; a region's 190 by 22; a relationship's 144 by 34. The script draws as
-many lines as a slot holds, so a newer page on an older diagram loses lines, never its place (the marks are the last
-line: a diagram from before them loses only them), and it spreads the 30 bars of the history strip over the slot's
+a static site's and a dependency's 232 by 46; a region's 190 by 22; a relationship's 144 by 34. A node a deployment
+changes (every node with a `deployable`: a web app, a Front Door endpoint, a static site) is 30 px taller than that,
+two rows for its activity lines ("Deployments in flight" below): 232 by 176 or 191, 128 and 76. The script draws as
+many lines as a slot holds, so a newer page on an older diagram loses lines, never its place (the activity lines are
+the last lines, after the marks: a diagram from before them loses only them, and shows the dot alone until the
+dashboard is deployed again), and it spreads the 30 bars of the history strip over the slot's
 width. The widths are what the widest line needs: every pixel of them is paid for by the scale of the whole diagram
 (a slot of 250 and a number line of 160 made cmdemo2's diagram wider than the page at its smallest scale).
 
@@ -474,7 +526,9 @@ The payload, as JSON:
                "link": { "href": "https://...", "title": "Live Metrics ..." }, "nameLink": { "href": "https://...", "title": "The web app ..." },
                "deployment": { "state": "executing", "title": "deploying cmdemo2-ui 2.4.43 to uat (3 min so far)",
                                "link": { "href": "https://...", "title": "..." } } } ],
-  "regions": [ { "alias": "region_primary", "state": "serving", "label": "serving traffic" } ],
+  "regions": [ { "alias": "region_primary", "state": "serving", "label": "serving traffic",
+                 "nameLink": { "href": "https://...", "title": "The resources in westus3, a query in Azure Resource Graph Explorer (...)" } } ],
+  "names": [ { "alias": "rg_tier", "nameLink": { "href": "https://...", "title": "The resource group rg-cmdemo2-nonprod in the Azure portal (...)" } } ],
   "edges": [ { "id": "fd_ui-to-app_ui_primary", "state": "active", "number": "10", "unit": "calls/min",
                "text": "first, while healthy", "title": "...",
                "link": { "href": "https://...", "title": "Performance ..." }, "trend": { "points": [ 0, 1 ], "title": "..." } } ]
@@ -483,23 +537,32 @@ The payload, as JSON:
 
 Node states `healthy`, `unhealthy`, `unreachable`, `checking`, `neutral`; region states `serving`, `standby`, `down`,
 `checking`, `neutral`; relationship states `active`, `idle`, `down`, `checking`, `neutral`; line tones `strong`,
-`plain`, `muted`, `serving`, `ok`, `warn`, `insync`, `differs`, `unknown`. `number` is absent for a relationship
+`plain`, `muted`, `serving`, `ok`, `warn`, `insync`, `differs`, `unknown`, and for an activity line its kind:
+`waiting`, `deploying`, `queued`, `frozen`, `freeze`, `deployed`, `failed`, `canceled`. `number` is absent for a relationship
 without a number line, and "–" where no node reports calls per minute. The script reports every alias or id of the
 payload that the SVG lacks, and the view names them.
 
 Optional in the payload, and absent where there is nothing to say: `link` (a tile's badge, a relationship's number)
-and `nameLink` (the node's name, which PlantUML drew: the script wraps it), each `{ href, title }`; a line's `parts`
+and `nameLink` (the name of a node or a region, which PlantUML drew: the script wraps it), each `{ href, title }`;
+`names`, the boxes that have a name and nothing else to update (the frames that are no region, and the browser),
+each with its `nameLink`; a line's `parts`
 (the same words as `text` in pieces, present only when a piece has a `link`); `trend` on a line or a relationship
 (`points` are heights from 0 to 1, oldest first, on a scale from zero to the largest reading; `title` is the same in
 words); a line's `marks`, one per entry of the node's detailed health check (`state` `healthy`, `degraded`, `failed`
 or `unknown`, drawn before the line's words as a check, a warning triangle, a cross or dots, each with its `title`
 as tooltip and accessible name; eight at most, those that are not healthy first). The script draws a link as an `a`
 element (new tab, `rel="noopener"`, its own `title`) and gives the focus back to the link that had it when an update
-redraws the tile. A tile's `deployment` is the mark of a deployment of the node's deployable to the shown environment:
+redraws the tile. A box whose name is a link is one a click opens: the script listens once on the diagram, and a
+click that is not on a link opens the address of the name link of the box under it (`window.open`, a new tab,
+`noopener`); it adds no second link and no stop in the order of the keyboard, where the name link is the box's
+stop and Enter on it opens it. A tile's `deployment` is the mark of a deployment of the node's deployable to the shown environment:
 `state` `executing`, `queued`, `waiting` or `ended` (the dot's shape), `title` (the sentence; one line per deployment
 when the deployable has more than one, and the first gives the shape) and `link` (the task in Octopus Deploy; absent
 when the file gives no address). The script draws it in the corner of the node's slot, or of its box for a node
-without one.
+without one. The activity lines of the node's deployable are ordinary lines, the tile's last: their `tone` is their
+kind, which gives them their icon (the shapes of the dot for `waiting`, `deploying` and `queued`, a snowflake for
+`frozen` and `freeze`, a check, a cross and a bar for `deployed`, `failed` and `canceled`), and their words are a
+link to the task where the file gives its address.
 
 ## The cluster view
 
@@ -678,6 +741,144 @@ destination asks for a sign-in: the page holds no credential and calls none of t
 | `cluster.links` | `portal` | The AKS cluster in the Azure portal. | "AKS cluster in the Azure portal" in the cluster view's "AKS service" card. |
 | | `workloads` | The cluster's workloads in the Azure portal. | "Workloads in the Azure portal" next to the cluster view's "Pods". |
 
+### A page of the system itself
+
+A system may lead from its dashboard to another page of its own: a container deployable names it in `system.json`
+(`"dashboardLink": { "text": "Scorecard", "path": "/scorecard" }`), and the dashboard's deployment writes, for every
+environment that deployable exists in, an entry of `environments[].pages` with the address the deployable has there.
+The page shows them after the environment's resource links, in the Health view and the Runtime view; each opens a
+new tab, and its title is its words and "(opens in a new tab)", with no sign-in named: it is a page as public as this
+one.
+
+Its limits. The address is the one the environment's stack reported when the dashboard was last deployed: a
+container app's address changes when the app moves (a placement), and the link is then stale until the dashboard is
+deployed again. A dashboard's deployment reads the stacks of the other environments as its own tier's deploy
+identity, so the dashboard of one tier shows no link for an environment of the other tier (seen on cmdemo1,
+2026-10-10: the prod dashboard had no link for tdd and uat); its log says so in one line per link it left out. The capability check of the topology (CAP-075) compares nodes and does not look at pages.
+
+### The container apps of the system
+
+A container app the system creates has no node in `topology.json`, so the health view, which checks every node every
+30 seconds, leaves it alone: it scales to zero, and those checks would keep it started. It is in the runtime diagram:
+the deployment draws a Container Apps environment under the subscription (named after the part of the apps' addresses
+the platform generates, with its region) and a box per app with its name and address, an arrow from the browser and
+one to the database where the app uses it. In the manifest (`runtime/<env>.json`) a box is a node of kind
+`containerapp` with its `deployable`, `name`, `url`, `links.site`, its deployable's `healthPath` (a plain path; left
+out otherwise) and its resource id in `ids` where the groups' list has it; the box leads to the app's address. The
+deployment's identity reads the stacks of its own tier only; for the other tier's environments it reads
+`containers.json` on the system repository's branch `status`, which workflow `delivery` publishes hourly
+(`scripts/write-containers.ps1`), and without that file those diagrams have no boxes. A box is as old as the
+dashboard's last deployment and, for the other tier, as that file.
+
+**The page probes the apps it shows** (decision 0038): while the runtime view shows a diagram and the page is neither
+paused nor hidden, every container app of it with a public address is asked once a minute (each round of checks asks
+the apps whose minute is up; a diagram shown for the first time asks at once). A declared app is asked at its
+`healthPath` with the probe Health check and at its root with Liveness; an app `system.json` does not declare at its
+root. The badge says:
+
+| Badge | Drawn as | When |
+|---|---|---|
+| Probing | being checked | Not asked yet |
+| Waking | being checked | No answer yet, within 90 seconds of the first probe of a run: an app that scaled to zero starts on the first request. A run starts again after five minutes without a probe (the tab was hidden or the view closed) |
+| Healthy, Unhealthy | healthy, unhealthy | The status of its health path (HTTP 200, or another) |
+| Responding | healthy | It answered, and the page cannot tell its health: it asked the root, or the app does not allow this page's origin |
+| Not responding | unreachable | No answer after the 90 seconds, or no answer after it had answered |
+
+The kit's container apps allow every origin to read a GET (a CORS policy of their ingress, with a static deployable,
+as the App Service apps). An app that does not (one the system made itself, or one before its next apply) is asked
+again in `no-cors` mode: the browser then says whether it answered and nothing else, the badge says "Responding" and
+the tooltip says why, and the page asks it that way while it is open (one request a minute). Nothing probes the apps
+while no page shows them, so they still scale to zero; while one does, an app stays awake, with a database its health
+check queries (the probe Liveness asks its root instead).
+
+The pipeline also asks: the hourly runbook "Health report" asks every app of the environment's stack and writes one
+line per app into its log. The workflow that publishes the delivery facts reads those lines and adds, per container
+app, what the runs found (`health.containerApps` of `delivery.json`, see "Availability"), and the box of a declared app
+shows it under the app's address in neutral words, as two lines of its tile, the history under the probe:
+
+> hourly: healthy, 40 min ago
+> 24 h: 23 of 24 · 7 d: 160 of 168
+
+- The first line is the newest result (healthy, unhealthy or unreachable) and how long ago that report ended. It is
+  history, not the app's state now: the box's colour and badge are the page's probe, whatever the result.
+- A result is said while it is at most two hours old: the runbook runs hourly, and the delivery facts are published
+  hourly. Older, or without one, the line says "no recent hourly check", in grey and not in red: a report that
+  stopped is no news about the app.
+- The second line counts, of the reports of 24 hours and of 7 days that asked the app, those that found it healthy;
+  "none" for a time without one, and left out where the file does not count it (a report whose log the workflow has
+  not read yet).
+- Without `health.containerApps` (an older file, an environment whose logs could not be read) the box has its address
+  alone, as before. The diagram has room for both lines (a container app's slot is 106 px high); one rendered before
+  has room for one of the two activity lines after them.
+
+A container app that `infra/own` adds, or one whose address the deployment could not read, is a box of its own among
+the supporting resources (below), without these lines: the hourly report asks the apps of the stack only. The page
+probes it at its address as any other; one without an address says what Resource Health said of it.
+
+### Supporting resources
+
+Everything else the system's resource groups hold is on the diagram too, so that it shows the entire system and not
+only what the registry declares. The deployment lists every group of `azure.resourceGroups`, whatever the environment
+tag (`az resource list` where its identity may; otherwise `resources.<key>` of `containers.json` on branch `status`),
+and places each resource by its tag: the environment's own in a frame "Supporting resources" inside its resource group,
+with one box per type of resource (the vault, the SQL server, Application Insights, the Log Analytics workspace, a
+storage account of `infra/own`, the managed identities as one box "Managed identity (n)" with their names, and any other
+type by the name Azure gives it); another environment's in that environment's diagram; and what no environment tag
+places (no tag, or a tag of no environment of the system) in a frame "In no environment", one box per type, group and
+tag, each saying its group and its tag or that it has none. A container app `system.json` does not declare is a node of
+kind `containerapp` without a `deployable` and without a `healthPath` (its address where it has a public one, which the
+page probes at its root), in its Container Apps environment or in "In no environment". The web apps, plans, static
+sites, the Front Door profile, the container apps and the Container Apps environment of a drawn app are not repeated,
+nor children of a resource or role assignments; in-cluster workloads are not listed. In the manifest a resource box is
+a node of kind `resource` with its `type`, `count`, `names`, `group` (and `environmentTag` in "In no environment"),
+`ids` (the resource ids of its members), and a link to its page in the Azure portal (a group of them leads to the
+resource group). The browser cannot ask them: a box of this kind has a slot of one line under its words (200 by 46
+px, which the manifest's check asks for), where the page says what Resource Health said of its members.
+
+### Resource Health
+
+Workflow `delivery` reads Azure Resource Health for every resource of every group of `azure.resourceGroups`, hourly, as
+the plan identity with Reader (`scripts/write-containers.ps1`: one list of
+`Microsoft.ResourceHealth/availabilityStatuses` per group, paged), and writes each record's `health` into
+`containers.json`: `status` (available, degraded or unavailable), `source` `resourceHealth`, `checkedAt`, and Resource
+Health's own words as `summary`. Where Resource Health has no answer (a type it does not cover, or Unknown) it is the
+provisioning state the group's list gave (`succeeded`, source `provisioningState`), and else `unknown` (source
+`none`). A read that is refused keeps the health published before, with a SKIP line in the workflow's log.
+
+The page reads `containers.json` from the same folder as `delivery.json` (`system.deliveryUrl`, on branch `status`),
+every five minutes while the runtime view shows a box with `ids`, and finds each id's health whatever its case. The
+box (a resource, the database where no web app's health check tells, a static site the page does not ask, a container
+app without an address) keeps its neutral colour and says, in words: "Available", "Degraded", "Unavailable",
+"Provisioned" or "Not known" as its badge, and "Resource Health, 40 min ago" (or "provisioning state, …", "no Resource
+Health, …") as its line, grey once the oldest reading is more than two hours old. A box of several resources has the
+most urgent word as its badge and the count of each word as its line; the tooltip names each resource, what was read
+and when, with Resource Health's words. Until the file has `health` the box says "Not known" and "no Resource Health
+read yet"; a diagram from before the ids shows the box as before.
+
+A dependency a container app declares (`deployables[].dependencies`) is drawn with an arrow from the app's box, as for a
+web app; its state is unknown (the page reads no detailed health check of a container app).
+
+### Every box of the runtime view
+
+In the runtime view a box leads to what it stands for. A web app, a Front Door endpoint and the database take the
+link of the table above; every other box takes its link from the diagram's manifest (`runtime/<env>.json`, `links`
+of a frame, a region or a node), which the same deployment writes:
+
+| Box | Key | It leads to |
+|---|---|---|
+| The subscription, a resource group, the Front Door profile, an App Service plan, a Static Web App; in a cluster the AKS cluster and a Static Web App next to it | `portal` | The resource's page in the Azure portal, from its id (`/subscriptions/<id>`, `.../resourceGroups/<name>`, `.../Microsoft.Cdn/profiles/<profile>`, `.../Microsoft.Web/serverfarms/<plan>`, `.../Microsoft.Web/staticSites/<site>`, `.../Microsoft.ContainerService/managedClusters/<cluster>`). |
+| A region of the system | `resources` | The resources of the tier's resource group in that region, a query in Azure Resource Graph Explorer: a region is no resource and has no page of its own. |
+| A namespace's frame (a cluster) | `namespaces` | The cluster's namespaces in the Azure portal. |
+| SQL Server's StatefulSet and a static site in a cluster | `workloads` | The cluster's workloads in the Azure portal. |
+| The boundary of an application with its own runtime | `project` | Its project in Octopus Deploy: the system knows none of its resources. |
+| The browser; the public address and the nodes of an application with its own runtime | `site` | The address itself: for the browser, the first public address the diagram draws an arrow to. |
+
+A box with several keys leads to the first of this order. Two kinds of box have no link, because the system knows no
+address for them: a dependency (`deployables[].dependencies` names it and its health check, not where it is) and the
+region an application with its own runtime reported. Without `azure.subscriptionId` in `system.json` no resource has
+an id, and only the `site` and `project` links are written. The ids are public data of the system, as the links of
+`topology.json` are; the portal asks the viewer to sign in.
+
 Two links need no entry, because the page builds them from what it reads: a web app's **version** leads to its
 release in Octopus Deploy (`projectUrl` + `/deployments/releases/<version>`), or else, when its build reports that
 version, to the commit (`commitUrl` of the build endpoint); a Front Door endpoint's version is no link, since it
@@ -721,8 +922,10 @@ Door down although a node is healthy, or Front Door healthy although no node is)
 address, as in a Kubernetes cluster) is shown as a single node that serves: nothing can take over from it, so the
 banner says "Serves traffic: <node>", "Not serving: <node>" or "Checking <node>", the runtime view's tile "serves
 traffic", "not serving" or "checking", and neither names a primary, a standby, a region or a failover. The states and
-their colours are the same. Where the topology has no Front Door endpoint at all, the page's help texts do not name
-Front Door either.
+their colours are the same.
+
+**No explanatory paragraphs.** The page carries no paragraph that explains itself: what a state, a number or a mark
+means is in the legend, in the hover texts and in this file.
 
 **Summary.** Every tile counts as one node: the Front Door endpoints and the web apps. Unhealthy and Unreachable both
 count as not healthy.
@@ -788,10 +991,10 @@ reading the pinned versions (`PinnedVersions`, `PinnedVersionsReader`) and compa
 (`VersionAssessment`, `VersionSummary`), a node's telemetry with its process (`TelemetrySnapshot`, `ProcessVitals`),
 the trends (`Trend`, `Trends`), the events (`EventDetector`, `EventLog`), the build facts (`BuildInfo`, `BuildText`;
 the dashboard's own are `DashboardInfo` of the topology and `DashboardMonitor.DashboardBuild`), the traffic button's
-requests and its choice of environment (`TrafficPlan`),
+requests and its choice of environment (`TrafficPlan`) and what it counted (`TrafficCount`),
 the entries of a detailed health check (`HealthDetail`, `HealthDetailText`),
 the delivery facts (`DeliveryReport`, `DeliveryText`) with the hourly health reports (`HealthReports`,
-`AvailabilityText`), the cost (`CostReport`, `CostText`), the deployments in flight (`DeploymentsReport`,
+`AvailabilityText`) and what they found for each container app (`ContainerAppReports`, `HourlyCheckText`), the cost (`CostReport`, `CostText`), the deployments in flight (`DeploymentsReport`,
 `DeploymentMark`, `DeploymentText`) and the links (`LinkSet`, `LinkText`). The runtime view's logic is in `src/Dashboard/Runtime`: reading `runtime/`
 (`RuntimeManifestParser`, `RuntimeLoader`), the update of the diagram (`RuntimePayloadBuilder`) and the view in the
 address (`ViewAddress`). The cluster view's logic is in `src/Dashboard/Cluster`: the two files (`ClusterStatus`,
@@ -800,8 +1003,9 @@ grouping and the sums (`ClusterGroups`, `ClusterTotals`), the words and units (`
 (`ClusterEventDetector`). `HttpClient` and `TimeProvider` are injected, so the tests run them with a stub handler and
 fake time.
 
-There is no external dependency at run time: no CDN, no web font, no CSS framework. The style sheet is
-`wwwroot/css/app.css` and follows the viewer's light or dark preference.
+There is no CDN and no CSS framework. The style sheet is `wwwroot/css/app.css`, with one theme (see "How it looks,
+and why"), and the page's two faces are files of its own (`wwwroot/fonts`): the page itself loads nothing from
+another site (`PageFilesTests`).
 
 The site is static and expects to be served from the root of its host (`<base href="/">`); the host must serve
 `.wasm` files as `application/wasm`.
@@ -916,6 +1120,16 @@ response stays opaque. While it runs, the page checks every 10 s, and says so ne
 ("every 10 s while traffic runs") while that control names a longer interval; the control keeps the viewer's choice,
 which applies again when the traffic ends.
 
+The line next to the button counts every request sent as answered, failed (the browser reports a network failure),
+given up with no answer within 10 s, or on its way, so its numbers add up to the first (`TrafficCount`): "18 sent,
+18 answered; 51 s left.", and "107 sent, 99 answered, 8 on their way; 6 s left." when answers come late. An answer
+counts whatever its HTTP status is: the page cannot read an opaque response. The run is over after its last answer,
+not after its last request: once nothing more is sent the line says what it waits for ("119 sent, 99 answered, 20 on
+their way; waiting for their answers."), for 10 s at most, since a request is given up then. It ends with "Done: 119
+sent, 119 answered.", or with "Done: 119 sent, 109 answered, 10 with no answer within 10 s." when some answers did
+not come in time; the event of the end says the same ("Traffic ended: 119 sent, 119 answered"). A request given up
+may still have reached the app: the web app's own count on its tile says how many did.
+
 The panel's "Environment" starts on the environment the runtime view shows (`#runtime/uat`: uat) and follows it when
 the viewer selects another diagram; where the page has shown none (the health view), it is the first environment
 that has something to call. Once the viewer picks an environment in the panel, that choice stays, and nothing
@@ -976,7 +1190,7 @@ the one before (`EventDetector`); nothing comes from a server's log, and a reloa
 | Deployment | A web app reports another version. Not for a Front Door endpoint, which answers for whichever node served. | "ui: 2.4.14 → 2.4.15, deployed" |
 | Serving region | At the end of a round, the node expected to serve changed: a failover, a failback, nothing serves, serves again. | "Failover: westus3 → eastus2. Primary westus3 is unreachable; eastus2 is expected to serve traffic." |
 | Pin | The version pinned in Git changed between two readings of `versions.json`, or of the deployable's own file (`pinUrl`). | "ui: pinned 2.4.14 → 2.4.15 in Git" |
-| Traffic | The traffic button was started, stopped or ran out. | "Traffic started: 2 requests a second for 60 s to ui at cmdemo2-uat-def456.z01.azurefd.net" |
+| Traffic | The traffic button was started, or its run ended: stopped or ran out, and no answer is on its way any more. | "Traffic started: 2 requests a second for 60 s to ui at cmdemo2-uat-def456.z01.azurefd.net" |
 | Cluster | Only with `cluster` in the topology, between two readings of its files and never at the first: the status file stopped answering or answers again; the collector stopped writing (the file became stale) or writes again; a node is no longer ready or is ready again; per pod one event a round at most: its restart count rose, or else it became unhealthy, or else it is ready again; Azure's verdict on the AKS service or its power state changed. A round names ten pods and counts the rest. | "ui in cmdemo3-tdd restarted (7 restarts): CrashLoopBackOff", "Node aks-…000000 is not ready", "The cluster's status file stopped answering: no answer within 10 s", "Azure's verdict on the AKS service: Available → Degraded" |
 
 The list is a `role="log"` region: additions are announced politely, and it scrolls inside its own frame. An event's
@@ -1054,7 +1268,9 @@ reading that fails later keeps the last good one.
   "environments": [ { "name": "prod", "deployables": [
     { "name": "ui", "version": "2.4.14", "deployedAt": "2026-10-06T03:37:00Z", "signedOffBy": "cm-ai-ops", "reason": "...",
       "commit": "<sha>", "commitAt": "...", "leadTimeHours": 5.2, "behindFirst": { "versions": 0, "days": 0 },
-      "deploymentsLast7Days": 4, "failedLast7Days": 0, "releaseUrl": "https://..." } ] } ],
+      "deploymentsLast7Days": 4, "failedLast7Days": 0, "releaseUrl": "https://...",
+      "lastPersonSignOff": { "version": "2.4.11", "by": "pat.morgan", "at": "2026-10-03T21:12:41Z", "reason": null,
+                             "releaseUrl": "https://..." } } ] } ],
   "failover": { "environment": "uat", "at": "2026-10-05T12:00:00Z", "seconds": 44 } }
 ```
 
@@ -1066,6 +1282,7 @@ The "Delivery" card of a deployable in an environment shows what is there:
 |---|---|
 | Deployed: the version (linked to `releaseUrl`) and how long ago, the exact time in the title. | `version`, `deployedAt` |
 | Signed off: by whom, and the reason. The first environment has no sign-off step, so its card has no such line. | `signedOffBy`, `reason` |
+| Last by a person: the newest successful deployment here whose sign-off a person answered, not a service account: its version (linked to its own `releaseUrl`), by whom, how long ago (the exact time in the title) and the note they gave, when they gave one ("2.4.11 by pat.morgan 2 d ago"). Automation signs off most deployments, and without this line its next one would take the person's sign-off off the card. It is there also when that deployment is the one the card shows as deployed (the note is then said once, in the line above); not when no person signed one off (`null` or absent), nor when the object names neither a version nor a person. | `lastPersonSignOff`: `version`, `by`, `at`, `reason`, `releaseUrl` |
 | Lead time: from the commit to this deployment ("5.2 h from commit 0a1b2c3 to this deployment"). | `leadTimeHours`, `commit`, `commitAt` |
 | Compared: with the first environment of the topology: "same as tdd", "2 versions, 3 days behind tdd". Versions are the distance in the project's list of releases; days are since both last ran the same release (absent when they never did). Not shown in the first environment. | `behindFirst` |
 | Last 7 days: "4 deployments, none failed"; a warning when one failed. | `deploymentsLast7Days`, `failedLast7Days` |
@@ -1080,19 +1297,23 @@ system (infrastructure and pipeline)", then the others (such as the dashboard). 
 
 The system's pipeline has an hourly runbook "Health report" in Octopus Deploy: per environment it asks every node
 and the public address, and the run fails when one is not healthy. The workflow that publishes the delivery facts
-counts those runs (`scripts/write-delivery.ps1` of the system repository: one read of Octopus per environment), and
-an environment of `delivery.json` then has:
+counts those runs (`scripts/write-delivery.ps1` of the system repository: one read of Octopus per environment, and,
+where the environment has container apps, the log of each run once: what it said is kept in `health-reports.json`
+next to the file), and an environment of `delivery.json` then has:
 
 ```json
 { "name": "prod", "deployables": [ ],
   "health": { "last24Hours": { "reports": 24, "healthy": 23 }, "last7Days": { "reports": 166, "healthy": 164 },
-              "lastFailure": "2026-10-06T16:13:00Z" } }
+              "lastFailure": "2026-10-06T16:13:00Z",
+              "containerApps": [ { "name": "ui", "last": { "result": "healthy", "at": "2026-10-06T21:02:13Z" },
+                                   "last24Hours": { "reports": 24, "healthy": 24 }, "last7Days": { "reports": 166, "healthy": 165 } } ] } }
 ```
 
 | Field | What it is |
 |---|---|
 | `last24Hours`, `last7Days` | `reports`: the health reports of the environment that ended in that time (succeeded, failed or timed out; a cancelled one is in neither number). `healthy`: those of them that succeeded. |
 | `lastFailure` | When the last report that did not succeed ended; `null` when none did in seven days. |
+| `containerApps` | Per container app of the environment, what the reports found for it, read from the line each report writes for it in its log: `name` (the deployable), `last` (`result`: `healthy`, `unhealthy` or `unreachable`; `at`: when that report ended; `null` when no report of seven days asked it), and `last24Hours`, `last7Days` as above but of the reports that asked the app (`null` while the workflow has not read the log of every report of that time). Absent where the environment has no container app; `null` when the logs could not be read. The runtime view shows it on the app's box (see "The container apps of the system"). |
 | `health` itself | `null` or absent when the system has no such runbook or its runs could not be read. |
 
 Under the environment's name in the health view ("Availability") and under the diagram in the runtime view
@@ -1151,7 +1372,7 @@ Where it is shown:
 | Health, after the environments | A heading per entry that is no environment of the topology: first those Azure still bills under another name (a removed environment, marked "not in the topology"), then `shared` ("no environment"), each with its line and a sentence that says what it holds. |
 | Runtime, under the diagram | "Cost of <environment>" and "Cost of what the environments share". |
 
-A line reads "Cost $1.52 yesterday · $9.80 in 7 days · $11.02 this month · as of 2026-10-06". The numbers are never
+A line reads "Cost $1.52 yesterday · $9.80 in 7 days · $11.02 this month · as of 2026-10-06 (UTC)". The numbers are never
 presented as live:
 
 - every line ends with the day its numbers are of ("as of"), and its tooltip says that Azure's cost arrives hours late
@@ -1179,10 +1400,22 @@ minutes and on demand (`scripts/write-deployments.ps1` of the system repository)
 ```json
 { "generated": "2026-10-08T04:22:24Z", "system": "cmdemo2", "octopus": "https://example.octopus.app/app#/Spaces-1",
   "deployments": [
+    { "project": "cmdemo2-ui", "environment": "prod", "release": "2.4.42", "state": "waiting",
+      "since": "2026-10-08T02:00:00Z", "startedBy": "jeffrey", "url": "https://...",
+      "waitsFor": { "kind": "sign-off", "title": "Sign-off", "since": "2026-10-08T02:00:40Z", "responsible": "cmdemo2 approvers" } },
     { "project": "cmdemo2-ui", "environment": "uat", "release": "2.4.43", "state": "executing",
-      "since": "2026-10-08T04:22:07Z", "url": "https://example.octopus.app/app#/Spaces-1/tasks/ServerTasks-1" },
+      "since": "2026-10-08T04:22:07Z", "startedBy": "ai-ops", "url": "https://example.octopus.app/app#/Spaces-1/tasks/ServerTasks-1" },
     { "project": "cmdemo2-ui", "environment": "tdd", "release": "2.4.43", "state": "succeeded",
-      "since": "2026-10-08T04:15:00Z", "finished": "2026-10-08T04:20:00Z", "url": "https://..." } ] }
+      "since": "2026-10-08T04:15:00Z", "finished": "2026-10-08T04:20:00Z", "startedBy": "ai-ops", "url": "https://..." } ],
+  "recent": [
+    { "project": "cmdemo2-ui", "release": "2.4.43", "environment": "tdd", "result": "succeeded",
+      "finished": "2026-10-08T04:20:00Z", "startedBy": "ai-ops", "url": "https://..." },
+    { "project": "cmdemo2-ui", "release": "2.4.41", "environment": "prod", "result": "failed",
+      "finished": "2026-10-06T15:02:11Z", "startedBy": "jeffrey", "url": "https://..." } ],
+  "freezes": [
+    { "name": "prod weekend", "from": "2026-10-10T00:00:00Z", "to": "2026-10-12T00:00:00Z", "active": false,
+      "environments": [ "prod" ], "projects": [ "cmdemo2-ui" ] } ],
+  "missing": [] }
 ```
 
 | Field | What it is |
@@ -1195,10 +1428,24 @@ minutes and on demand (`scripts/write-deployments.ps1` of the system repository)
 | `since` | When it started, or when it was queued while it has not started. |
 | `finished` | When it ended; absent while it has not. |
 | `url` | The task in Octopus Deploy. |
+| `startedBy` | Who started it, as Octopus Deploy names the account; an e-mail address is cut at the @. Absent when Octopus does not say, or the system could not read it. |
+| `waitsFor` | Only while `state` is `waiting`: `kind` (`sign-off`, or `guided failure` for the question Octopus asks after a step failed), `title` (Octopus's title of it), `since`, and `responsible`: the person who took it, otherwise the teams Octopus names (empty when the system could not read their names). |
+| `recent[]` | The last deployment that ended of each project in each environment, the last one first: `project`, `release`, `environment`, `result` (`succeeded`, `failed`, `canceled`), `finished`, `startedBy`, `url`. It stays after the half hour of `deployments`. |
+| `freezes[]` | The deployment freezes of the Octopus instance that cover a project of the system now or within 72 hours: `name`, `from`, `to`, `active` (in force when read), `environments` and `projects` (names). |
+| `missing[]` | The parts the system could not read: `recent`, `freezes`, `startedBy`, `responsible`. A call the system's account may not make fails nothing there: deployment freezes belong to the instance, and the account has rights in its own space. An empty `freezes` that is not named here says that no freeze covers the system. |
+
+`startedBy`, `waitsFor`, `recent`, `freezes` and `missing` have the names and the words of the fleet's `activity`
+(the kit's `docs/fleet.md`), which says the same facts about every system on the fleet's dashboard.
 
 The file must be a JSON object with a `deployments` list. An entry without `project`, `environment`, `release` or
 `state` is left out; a time that does not parse is no time; an address that is not an absolute http(s) address is no
-link; unknown fields are ignored.
+link; unknown fields are ignored. A `recent` entry without a project, an environment, a release, a result or the
+time it ended, and a freeze without a name or the time it ends, are left out too.
+
+**An older file, and an older page.** A file from before `recent`, `freezes` and `missing` (a system that has not
+taken the newer `write-deployments.ps1` yet) is drawn exactly as before them: the dots and the sentences, and not a
+word more. The page tells such a file by the absence of all three lists. A page from before them ignores the new
+fields, as it ignores every field it does not know.
 
 **What is marked.** A deployment in flight (`queued`, `executing`, `waiting`), for as long as the file has it; one
 that ended, for ten minutes after `finished` (by the browser's clock) and then no more, so a deployment of a few
@@ -1215,6 +1462,7 @@ environment in full:
 | `queued` | cmdemo2-ui 2.4.43 is queued for uat |
 | `executing` | deploying cmdemo2-ui 2.4.43 to uat |
 | `waiting` | cmdemo2-ui 2.4.43 waits for a sign-off in uat |
+| `waiting`, with `waitsFor.kind` `guided failure` | cmdemo2-ui 2.4.43 asks what to do after a failed step in uat |
 | `succeeded` | cmdemo2-ui 2.4.43 reached uat 5 min ago |
 | `failed` | cmdemo2-ui 2.4.43 failed in uat 5 min ago |
 | `canceled` | cmdemo2-ui 2.4.43 was canceled in uat 5 min ago |
@@ -1224,8 +1472,39 @@ The age is minutes under an hour ("5 min", and "1 min" at least), hours under tw
 The tooltip of a mark in flight adds for how long it has been so ("deploying cmdemo2-ui 2.4.43 to uat (3 min so
 far)").
 
-**The dot.** A mark is a dot and its sentence. The dot's colour is the marker's own, a blue that is none of the
-states of health, and it is never the only sign: the shape says the state, and the sentence says it in words.
+**What the file says more** follows a mark's sentence, quieter, wherever the mark is a line (under an environment's
+name, on a tile of the health view, under the runtime view's title), and is in its tooltip: "the sign-off is with
+cmdemo2 approvers; asked 2 h ago; started by jeffrey", "started by ai-ops". Octopus's title of the question is quoted
+when it says more than the kind does ("the sign-off "Approve the release to production" is with pat"). Nothing
+follows where the file says none of it.
+
+**The activity lines** say in words what is happening and what just happened, the most urgent first:
+
+| Kind | On a node of the runtime view (36 characters at most, then an ellipsis; the tooltip has it in full) | Under an environment's name |
+|---|---|---|
+| `waiting` | 2.4.43 waits for cmdemo2 approvers; without a name: 2.4.43 waits for a sign-off, 2 h; after a failed step: 2.4.43 failed a step: pat decides, or 2.4.43 failed a step and waits | the mark, with what the file says more |
+| `deploying` | deploying 2.4.44, 3 min, by ai-ops | the mark |
+| `queued` | 2.4.44 queued, 3 min (a state the page does not know: 2.4.44: paused) | the mark |
+| `frozen` | frozen until Sun 19:00: prod weekend | deployment freeze prod weekend: cmdemo2-ui frozen until Sun 19:00, and 1 more |
+| `freeze` | freeze from Sat 19:00: prod weekend | deployment freeze prod weekend: cmdemo2-ui frozen from Sat 19:00 until Sun 19:00 |
+| `deployed`, `failed`, `canceled` | 2.4.43 deployed 5 h ago by ai-ops; 2.4.43 failed 5 h ago by ai-ops; 2.4.43 canceled 5 h ago | last: cmdemo2-ui 2.4.43 reached uat 5 h ago, started by ai-ops (failed in, was canceled in) |
+
+A node carries two lines at most, of its deployable in the shown environment (the project `<slug>-<deployable>`): so
+a node whose deployment waits for a person in an environment that is frozen says both, and one where nothing is in
+flight and no freeze is near says the last deployment that ended. They do not name the deployable or the
+environment, because the node is both. Under an environment's name the marks come first, as before, then two lines at most:
+the freeze that covers the environment (the one in force before the one that comes; the tooltip names every one, with
+the projects and the times), and the last deployment to it that ended, unless a mark already says that one. A freeze
+is in force, coming or over by the browser's clock: one that begins more than 72 hours from now is not named, one
+that has ended is gone, whatever the file's `active` says (it decides only for a freeze without a `from`). A time
+near now is short and in the viewer's time zone: the time of day on the same day, the day of the week within a week,
+then the date. A line is a link to its task in Octopus Deploy where the file gives the address; a freeze has none.
+An icon stands before each line and is never the only sign: the dot's shapes for what is in flight, a snowflake for
+a freeze (thin while it only comes), a check, a cross and a bar for the last deployment; a deployment that failed is
+in the yellow of a warning on a node and the red of words on the page.
+
+**The dot.** A mark is a dot and its sentence. The dot's colour is the marker's own, the sky blue of Clear Measure's
+logo, which is none of the states of health, and it is never the only sign: the shape says the state, and the sentence says it in words.
 
 | Shape | State |
 |---|---|
@@ -1238,11 +1517,12 @@ states of health, and it is never the only sign: the shape says the state, and t
 
 | Where | What |
 |---|---|
-| Health, under an environment's name | Every mark of the environment, one line each: the dot and the sentence, the sentence a link to the task (`url`). First under the name, above the cost and the availability. |
+| Health, under an environment's name | Every mark of the environment, one line each: the dot and the sentence, the sentence a link to the task (`url`), and what the file says more. Then the activity lines of the environment: a deployment freeze, and the last deployment that ended. First under the name, above the cost and the availability. |
 | Health, on a tile | The marks of the tile's deployable in its environment, the same lines, under the tile's chips: on the Front Door tile and on every node's. The project `<slug>-<deployable>` is the deployable `<deployable>` of the topology; the system's own project and a project the topology does not list are on no tile, only under the environment's name. |
-| Runtime, under the title | Every mark of the shown environment, as in the health view: the system's own release marks the environment here, and so does a project the diagram draws no node of. |
+| Runtime, under the title | Every mark and the activity lines of the shown environment, as in the health view: the system's own release marks the environment here, and so does a project the diagram draws no node of. |
 | Runtime, the environments' buttons | A dot (the shape of its first mark) on every environment with a mark in flight, with the sentences as its tooltip: uat shows as deploying while prod is looked at. What only ended puts no dot there. |
 | Runtime, on a node | A dot in the corner of the tile of every node the manifest draws for the deployable (`deployable` of a node of `runtime/<env>.json`), also one the topology does not list, such as the dashboard's static site or a node an application recorded for itself. A dependency is not marked: nobody deploys it here. With more than one mark the first gives the shape, and the tooltip has all. |
+| Runtime, in a node's tile | The activity lines of the node's deployable, two at most, after the tile's own lines, where the diagram has rows for them (a diagram rendered by a deployment from before them has none on a full tile, and shows the dot alone). The same nodes as the dot. |
 | Runtime, the legend | The four shapes, only with `system.deploymentsUrl`. |
 
 **How fresh.** Minutes, not seconds, and the tooltip of every list says so, with the time of `generated`: a

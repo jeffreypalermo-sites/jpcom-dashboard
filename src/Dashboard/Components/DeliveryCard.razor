@@ -1,5 +1,5 @@
-@* The "Delivery" card of a deployable in an environment: its last deployment, from the system's delivery facts
-   (DeliveryReport). Each line is there when the file says it. *@
+@* The "Delivery" card of a deployable in an environment: its last deployment and the last one a person signed off,
+   from the system's delivery facts (DeliveryReport). Each line is there when the file says it. *@
 <section class="card card--delivery" aria-labelledby="@($"{IdPrefix}-delivery")">
     <h4 class="card__title" id="@($"{IdPrefix}-delivery")" title="@AsOf">
         Delivery
@@ -33,6 +33,31 @@
                         <span>by @who</span>
                     }
                     @if (Entry.Reason is { } reason)
+                    {
+                        <q class="card__reason">@reason</q>
+                    }
+                </dd>
+            </div>
+        }
+        @if (Entry.LastPersonSignOff is { } person)
+        {
+            <div>
+                <dt title="@DeliveryText.PersonSignOffHelp">Last by a person</dt>
+                <dd class="facts__parts">
+                    @if (person.Version is { } version)
+                    {
+                        <DeepLink Href="person.ReleaseUrl" Title="@LinkText.ReleaseTitle(Entry.Name, version)">@version</DeepLink>
+                    }
+                    @if (person.By is { } who)
+                    {
+                        <span>by @who</span>
+                    }
+                    @if (person.At is { } signed)
+                    {
+                        <time datetime="@TimeText.Iso(signed)" title="@TimeText.DateAndTime(signed, Zone)">@TimeText.Ago(signed, Now)</time>
+                    }
+                    @* The note is said once: the row above has it when the person signed off the deployment shown. *@
+                    @if (person.Reason is { } reason && reason != Entry.Reason)
                     {
                         <q class="card__reason">@reason</q>
                     }

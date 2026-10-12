@@ -113,9 +113,9 @@ public class CostTests
     [Fact]
     public void TheLineNamesTheDaysItsNumbersCoverAndTheDayTheyAreOf()
     {
-        Assert.Equal("$1.52 yesterday · $9.80 in 7 days · $11.02 this month · as of 2026-10-03", CostText.Line(Report.Find("uat")!.Amounts, Report, Now));
-        Assert.Equal("$3.41 yesterday · $22.10 in 7 days · $1,204.80 this month · as of 2026-10-03", CostText.Line(Report.System!, Report, Now));
-        Assert.Equal("— yesterday · $0.20 in 7 days · $0.20 this month · as of 2026-10-03", CostText.Line(Report.Find("retired")!.Amounts, Report, Now));
+        Assert.Equal("$1.52 yesterday · $9.80 in 7 days · $11.02 this month · as of 2026-10-03 (UTC)", CostText.Line(Report.Find("uat")!.Amounts, Report, Now));
+        Assert.Equal("$3.41 yesterday · $22.10 in 7 days · $1,204.80 this month · as of 2026-10-03 (UTC)", CostText.Line(Report.System!, Report, Now));
+        Assert.Equal("— yesterday · $0.20 in 7 days · $0.20 this month · as of 2026-10-03 (UTC)", CostText.Line(Report.Find("retired")!.Amounts, Report, Now));
         Assert.Equal(
             [new CostPart("—", "yesterday"), new CostPart("—", "in 7 days"), new CostPart("—", "this month")],
             CostText.Parts(new CostAmounts(null, null, null), "USD", AsOf, Now));
@@ -125,7 +125,7 @@ public class CostTests
     public void AFileThatWasNotRenewedIsNeverSaidToBeOfYesterdayOrOfThisMonth()
     {
         // Two days later the same file is of "2026-10-03", not of yesterday; in November it is of October.
-        Assert.Equal("$1.52 on 2026-10-03 · $9.80 in 7 days · $11.02 this month · as of 2026-10-03", CostText.Line(Report.Find("uat")!.Amounts, Report, Now.AddDays(1)));
+        Assert.Equal("$1.52 on 2026-10-03 · $9.80 in 7 days · $11.02 this month · as of 2026-10-03 (UTC)", CostText.Line(Report.Find("uat")!.Amounts, Report, Now.AddDays(1)));
         Assert.Equal("on 2026-10-03", CostText.Day(AsOf, new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.Zero)));
         Assert.Equal("in October", CostText.Month(AsOf, new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.Zero)));
         Assert.Equal("in October 2026", CostText.Month(AsOf, new DateTimeOffset(2027, 1, 2, 0, 0, 0, TimeSpan.Zero)));
@@ -156,7 +156,7 @@ public class CostTests
 
         Assert.Equal("$1.52 in the last full day · $9.80 in 7 days · $11.02 this month", CostText.Line(Report.Find("uat")!.Amounts, undated, Now));
         Assert.Null(CostText.AsOf(null));
-        Assert.Equal("as of 2026-10-03", CostText.AsOf(AsOf));
+        Assert.Equal("as of 2026-10-03 (UTC)", CostText.AsOf(AsOf));
     }
 
     [Fact]

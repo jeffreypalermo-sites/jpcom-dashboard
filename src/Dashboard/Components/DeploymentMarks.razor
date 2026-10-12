@@ -1,14 +1,29 @@
 @* What is being deployed (DeploymentMark): one line per deployment, a dot and the sentence, the sentence a link to
-   the task in Octopus Deploy where the file gives its address. Minutes old, and the tooltip says so. The dot's shape
-   and the sentence say the state; the colour is the marker's own, not one of health. Nothing without a mark. *@
-@if (Marks.Count > 0)
+   the task in Octopus Deploy where the file gives its address; after it, quieter, what the file says more (who is
+   responsible for what it waits for and since when, who started it). Then the activity lines (ActivityLine): a
+   deployment freeze, and the last deployment that ended. Minutes old, and the tooltip says so. The dot's shape and
+   the sentence say the state; the colour is the marker's own, not one of health. Nothing without a mark or a line. *@
+@if (Marks.Count > 0 || Activity.Count > 0)
 {
     <ul class="deployments" aria-label="@Label" title="@DeploymentText.Help(Generated, Zone)">
         @foreach (var mark in Marks)
         {
             <li class="deployments__mark @(mark.InFlight ? "deployments__mark--flight" : null)" title="@DeploymentText.Title(mark)">
                 <DeploymentDot State="mark.State" />
-                <span><DeepLink Href="mark.Url" Title="@DeploymentText.TaskTitle">@mark.Sentence</DeepLink></span>
+                <span>
+                    <DeepLink Href="mark.Url" Title="@DeploymentText.TaskTitle">@mark.Sentence</DeepLink>
+                    @if (mark.Detail is { } detail)
+                    {
+                        <span class="deployments__detail">@detail</span>
+                    }
+                </span>
+            </li>
+        }
+        @foreach (var line in Activity)
+        {
+            <li class="deployments__mark deployments__line deployments__line--@line.Kind" title="@line.Title">
+                <ActivityIcon Kind="@line.Kind" />
+                <span><DeepLink Href="line.Url" Title="@DeploymentText.TaskTitle">@line.Text</DeepLink></span>
             </li>
         }
     </ul>
@@ -18,6 +33,10 @@
     /// <summary>The marks, the one a person has to act on first.</summary>
     [Parameter, EditorRequired]
     public IReadOnlyList<DeploymentMark> Marks { get; set; } = default!;
+
+    /// <summary>What follows the marks: a deployment freeze, the last deployment that ended. Empty where the file has neither.</summary>
+    [Parameter]
+    public IReadOnlyList<ActivityLine> Activity { get; set; } = [];
 
     /// <summary>Whose deployments the list holds, for a screen reader.</summary>
     [Parameter, EditorRequired]
