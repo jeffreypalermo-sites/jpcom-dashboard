@@ -22,18 +22,18 @@ Person(browser, "Browser", "a user, or this dashboard")
 Boundary(sub, "Azure subscription", $type="subscription", $tags="scope") {
   Boundary(rg_edge, "rg-cmdemo2-edge", $type="resource group", $tags="scope") {
     Deployment_Node(afd, "afd-cmdemo2", "Front Door profile, Standard: global", $tags="plan") {
-      Container(fd_ui, "cmdemo2-tdd-ui", "Front Door endpoint", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAABiCAYAAABagp/GAAAAb0lEQVR42u3BAQ0AAADCoPdPbQ8HFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMC7AWOxAAGTj/7WAAAAAElFTkSuQmCC>")
+      Container(fd_ui, "cmdemo2-tdd-ui", "Front Door endpoint", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAACACAYAAAABDiVPAAAAiUlEQVR42u3BAQEAAACCIP+vbkhAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHwY0I8AARyonhEAAAAASUVORK5CYII=>")
     }
   }
   Boundary(rg_tier, "rg-cmdemo2-nonprod", $type="resource group", $tags="scope") {
     Deployment_Node(region_primary, "westus3", "Azure region: primary", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAL4AAAAWCAYAAAB+OyYeAAAAJklEQVR42u3BAQEAAACCIP+vbkhAAQAAAAAAAAAAAAAAAAAAADwYQWYAAUAsKwYAAAAASUVORK5CYII=>", $tags="region") {
       Deployment_Node(plan_primary, "asp-cmdemo2-tdd", "App Service plan, B1", "shared by tdd, uat", $tags="plan") {
-        Container(app_ui_primary, "app-cmdemo2-tdd-ui", "web app: ui", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAACSCAYAAABPEIbfAAAAmklEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+DQR8AABAiennwAAAABJRU5ErkJggg==>")
+        Container(app_ui_primary, "app-cmdemo2-tdd-ui", "web app: ui", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAACwCAYAAAAFdCLiAAAAtUlEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeDZ+zgABve42UgAAAABJRU5ErkJggg==>")
       }
     }
     Deployment_Node(region_data, "centralus", "Azure region: data, static sites", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAL4AAAAWCAYAAAB+OyYeAAAAJklEQVR42u3BAQEAAACCIP+vbkhAAQAAAAAAAAAAAAAAAAAAADwYQWYAAUAsKwYAAAAASUVORK5CYII=>", $tags="region") {
       ContainerDb(sqldb, "sqldb-cmdemo2-tdd", "Azure SQL database", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAAAuCAYAAAAiGFXRAAAAQElEQVR42u3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+Dem7gAB7XoUPgAAAABJRU5ErkJggg==>")
-      Container(swa_dashboard, "swa-cmdemo2-tdd-dashboard", "Static Web App: dashboard", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAAAuCAYAAAAiGFXRAAAAQElEQVR42u3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+Dem7gAB7XoUPgAAAABJRU5ErkJggg==>")
+      Container(swa_dashboard, "swa-cmdemo2-tdd-dashboard", "Static Web App: dashboard", "<img:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOgAAABMCAYAAABnJPuAAAAAW0lEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeDET2wAB3n4ObQAAAABJRU5ErkJggg==>")
     }
   }
 }

@@ -150,7 +150,7 @@ public static class BuildText
     /// <summary>What the page calls itself next to the dashboard's name: the chip of its heading.</summary>
     public const string ThisPage = "this page";
 
-    /// <summary>What the dashboard's own "Code" card is, for its section's help line.</summary>
+    /// <summary>What the dashboard's own "Code" card is, as the hover text of its section's chip.</summary>
     public const string DashboardHelp =
         "The build that serves this page, as its own site publishes it: the same facts every app of the system reports about its build.";
 

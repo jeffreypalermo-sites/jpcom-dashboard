@@ -53,13 +53,16 @@ internal static class Optics
           "environments": [
             { "name": "tdd", "deployables": [
               { "name": "ui", "version": "2.4.15", "deployedAt": "2026-10-04T20:30:00Z", "signedOffBy": null, "reason": null, "commit": "0a1b2c3d4e5f", "commitAt": "2026-10-04T19:45:00Z",
-                "leadTimeHours": 0.75, "behindFirst": { "versions": 0, "days": 0 }, "deploymentsLast7Days": 9, "failedLast7Days": 1, "releaseUrl": "https://octopus.example.net/r/2.4.15" },
+                "leadTimeHours": 0.75, "behindFirst": { "versions": 0, "days": 0 }, "deploymentsLast7Days": 9, "failedLast7Days": 1, "releaseUrl": "https://octopus.example.net/r/2.4.15",
+                "lastPersonSignOff": null },
               { "name": "system", "version": "1.0.33", "deployedAt": "2026-10-03T10:00:00Z", "deploymentsLast7Days": 2, "failedLast7Days": 0 } ] },
             { "name": "uat", "deployables": [
               { "name": "dashboard", "version": "1.0.7", "deployedAt": "2026-10-02T10:00:00Z" },
               { "name": "ui", "version": "2.4.14", "deployedAt": "2026-10-04T16:37:00Z", "signedOffBy": "cm-ai-ops", "reason": "Acceptance tests passed in tdd", "commit": "9f8e7d6c5b4a",
                 "commitAt": "2026-10-04T11:25:00Z", "leadTimeHours": 5.2, "behindFirst": { "versions": 2, "days": 3.4 }, "deploymentsLast7Days": 4, "failedLast7Days": 0,
-                "releaseUrl": "https://octopus.example.net/r/2.4.14" },
+                "releaseUrl": "https://octopus.example.net/r/2.4.14",
+                "lastPersonSignOff": { "version": "2.4.11", "by": "pat.morgan", "at": "2026-10-01T15:12:41Z", "reason": "Reviewed with the customer",
+                                       "releaseUrl": "https://octopus.example.net/r/2.4.11" } },
               { "name": "system", "version": "1.0.33", "deployedAt": "2026-10-03T11:00:00Z", "signedOffBy": "cm-ai-ops", "reason": "tdd applied" } ] } ],
           "failover": { "environment": "uat", "at": "2026-10-04T05:00:00Z", "seconds": 44 } }
         """;

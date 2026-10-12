@@ -1,0 +1,28 @@
+@* The icon of an activity line that is no deployment in flight (those have the mark's dot). The shape says the kind
+   as well as the colour: a snowflake for a deployment freeze (in force: solid lines; coming: thin), a check for the
+   last deployment that succeeded, a cross for one that failed, a bar for one that was canceled. The words stand next
+   to it. *@
+<svg class="activity-icon activity-icon--@Kind" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
+    @switch (Kind)
+    {
+        case ActivityKind.Frozen:
+        case ActivityKind.Freeze:
+            <path class="activity-icon__line" d="M6 .8v10.4M1.5 3.4l9 5.2M10.5 3.4l-9 5.2" />
+            break;
+        case ActivityKind.Deployed:
+            <path class="activity-icon__line" d="M2.2 6.4l2.5 2.5 5.1-5.6" />
+            break;
+        case ActivityKind.Failed:
+            <path class="activity-icon__line" d="M2.8 2.8l6.4 6.4M9.2 2.8l-6.4 6.4" />
+            break;
+        default:
+            <path class="activity-icon__line" d="M2.5 6h7" />
+            break;
+    }
+</svg>
+
+@code {
+    /// <summary>The line's kind (<see cref="ActivityKind"/>).</summary>
+    [Parameter, EditorRequired]
+    public string Kind { get; set; } = default!;
+}

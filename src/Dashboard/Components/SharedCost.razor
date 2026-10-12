@@ -11,10 +11,9 @@
         <section class="environment environment--cost" aria-labelledby="@id">
             <header class="environment__header">
                 <h2 id="@id">@entry.Name</h2>
-                <span class="chip">@(shared ? "no environment" : "not in the topology")</span>
+                <span class="chip" title="@(shared ? CostText.SharedHelp : CostText.OtherHelp(entry.Name))">@(shared ? "no environment" : "not in the topology")</span>
                 <CostLine Report="cost" Amounts="entry.Amounts" Services="entry.TopServices" Now="Now" />
             </header>
-            <p class="help">@(shared ? CostText.SharedHelp : CostText.OtherHelp(entry.Name))</p>
         </section>
     }
 }

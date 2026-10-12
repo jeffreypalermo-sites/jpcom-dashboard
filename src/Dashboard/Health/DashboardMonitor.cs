@@ -24,10 +24,14 @@ public sealed class DashboardMonitor
     private readonly PinnedVersionsReader _versions;
     private readonly TimeProvider _time;
     private readonly List<(EnvironmentStatus Environment, DeployableStatus Deployable, TargetStatus Target)> _targets;
+    private readonly Dictionary<string, ContainerAppProbe> _containerApps = new(StringComparer.Ordinal);
+    private IReadOnlyList<ContainerAppProbe> _watched = [];
+    private bool _resourceHealthWanted;
     private DateTimeOffset? _deliveryReadAt;
     private DateTimeOffset? _costReadAt;
     private DateTimeOffset? _deploymentsReadAt;
     private DateTimeOffset? _dashboardBuildAskedAt;
+    private DateTimeOffset? _resourceHealthReadAt;
 
     /// <param name="events">
     /// Where the monitor writes what it observes; the page keeps one log across reloads of the topology. A log of its
@@ -114,6 +118,20 @@ public sealed class DashboardMonitor
         Deployments?.Marks(environment, Topology.System.Slug, deployables, now) ?? [];
 
     /// <summary>
+    /// What the deployments file says in words about one deployable in an environment (<see cref="DeploymentActivity.OfNode"/>);
+    /// empty without the file.
+    /// </summary>
+    public IReadOnlyList<ActivityLine> NodeActivity(string environment, string deployable, DateTimeOffset now, TimeZoneInfo zone) =>
+        Deployments is { } report ? DeploymentActivity.OfNode(report, environment, Topology.System.Slug, deployable, now, zone) : [];
+
+    /// <summary>
+    /// What follows the marks under an environment's name (<see cref="DeploymentActivity.OfEnvironment"/>): a
+    /// deployment freeze and the last deployment that ended; empty without the file.
+    /// </summary>
+    public IReadOnlyList<ActivityLine> EnvironmentActivity(string environment, IReadOnlyList<DeploymentMark> marks, DateTimeOffset now, TimeZoneInfo zone) =>
+        Deployments is { } report ? DeploymentActivity.OfEnvironment(report, environment, marks, now, zone) : [];
+
+    /// <summary>
     /// The build of the dashboard itself (this page), from the file its own site serves; null when the topology names
     /// no <c>system.dashboard</c> or the file was not read. It belongs to the release that serves the page, so it is
     /// read once: until it answers, every <see cref="DashboardBuildRetry"/>.
@@ -130,6 +148,50 @@ public sealed class DashboardMonitor
     public string? FirstEnvironment => Topology.Environments.Count > 0 ? Topology.Environments[0].Name : null;
 
     /// <summary>
+    /// What Resource Health said of the system's resources, as last read; null while no box of the runtime view asks
+    /// for it, without <c>system.deliveryUrl</c>, or before the file was read. A reading that fails keeps the last good one.
+    /// </summary>
+    public ResourceHealthReport? ResourceHealth { get; private set; }
+
+    /// <summary>
+    /// The container apps and resources the runtime view shows: from the next round on, the page probes those apps
+    /// (each every <see cref="ContainerAppProbe.Interval"/>) and reads Resource Health while a box asks for it. An app
+    /// it showed before keeps what was seen of it. <see cref="RuntimeWatch.None"/> stops both.
+    /// </summary>
+    /// <returns>
+    /// True when this call made something due at once: it shows an app never probed, or asks for Resource Health never
+    /// read. The same watch again is false, so a caller that checks on true asks once.
+    /// </returns>
+    public bool Watch(RuntimeWatch watch)
+    {
+        ArgumentNullException.ThrowIfNull(watch);
+        var watched = new List<ContainerAppProbe>();
+        foreach (var target in watch.Apps)
+        {
+            if (!_containerApps.TryGetValue(target.Key, out var probe))
+            {
+                probe = new ContainerAppProbe(target);
+                _containerApps[target.Key] = probe;
+            }
+
+            watched.Add(probe);
+        }
+
+        var newApps = !watched.SequenceEqual(_watched) && watched.Any(probe => probe.IsNew);
+        var newHealth = watch.ResourceHealth && !_resourceHealthWanted && Topology.System.ContainersUrl is not null && _resourceHealthReadAt is null;
+        _watched = watched;
+        _resourceHealthWanted = watch.ResourceHealth;
+        return newApps || newHealth;
+    }
+
+    /// <summary>What the page saw of a container app; null for one it never showed.</summary>
+    public ContainerAppStatus? ContainerAppStatusOf(ContainerAppTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return _containerApps.GetValueOrDefault(target.Key)?.Status;
+    }
+
+    /// <summary>
     /// Checks every endpoint at the same time. Each result is recorded as it arrives, so a node that hangs until its
     /// timeout delays neither the others nor their display. The pinned versions are read at the same time, once per
     /// environment, and once per deployable that has a pin of its own (<c>pinUrl</c>); with the probe Health check, a
@@ -137,7 +199,8 @@ public sealed class DashboardMonitor
     /// result like any other and fails no check. So are the delivery facts, every <see cref="DeliveryInterval"/>, the
     /// cost, every <see cref="CostInterval"/>, the deployments in flight, every <see cref="DeploymentsInterval"/>, the
     /// dashboard's own build facts, once, and the two files of the cluster view, every round, where the topology names
-    /// a cluster.
+    /// a cluster. The container apps the runtime view shows are probed when their interval is due, and Resource Health
+    /// is read every <see cref="DeliveryInterval"/> while a box shows it (<see cref="Watch"/>).
     /// </summary>
     public async Task CheckAllAsync(ProbeKind probe, CancellationToken cancellationToken)
     {
@@ -148,11 +211,14 @@ public sealed class DashboardMonitor
             from deployable in environment.Deployables
             where deployable.Info.PinUrl is not null
             select ReadPinAsync(environment, deployable, cancellationToken);
-        await Task.WhenAll(checks.Concat(readings).Concat(pins)
+        var started = _time.GetUtcNow();
+        var containerApps = _watched.Where(app => app.IsDue(started)).Select(app => ProbeContainerAppAsync(app, probe, started, cancellationToken)).ToList();
+        await Task.WhenAll(checks.Concat(readings).Concat(pins).Concat(containerApps)
             .Append(ReadDeliveryAsync(cancellationToken))
             .Append(ReadCostAsync(cancellationToken))
             .Append(ReadDeploymentsAsync(cancellationToken))
             .Append(ReadDashboardBuildAsync(cancellationToken))
+            .Append(ReadResourceHealthAsync(cancellationToken))
             .Append(Cluster?.CheckAsync(cancellationToken) ?? Task.CompletedTask));
         var now = _time.GetUtcNow();
         foreach (var environment in Environments)
@@ -276,6 +342,31 @@ public sealed class DashboardMonitor
         Deployments = await _prober.ReadDeploymentsAsync(address, cancellationToken);
         if (before is not null || Deployments is not null)
         {
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>One probe of a container app the runtime view shows; its result is shown as it arrives.</summary>
+    private async Task ProbeContainerAppAsync(ContainerAppProbe app, ProbeKind probe, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        app.Start(now);
+        app.Record(await _prober.ProbeContainerAppAsync(app.Target, probe, app.Status.CorsRefused, cancellationToken));
+        Changed?.Invoke();
+    }
+
+    private async Task ReadResourceHealthAsync(CancellationToken cancellationToken)
+    {
+        var now = _time.GetUtcNow();
+        if (!_resourceHealthWanted || Topology.System.ContainersUrl is not { } address
+            || (_resourceHealthReadAt is { } last && now - last < DeliveryInterval))
+        {
+            return;
+        }
+
+        _resourceHealthReadAt = now;
+        if (await _prober.ReadResourceHealthAsync(address, cancellationToken) is { } report)
+        {
+            ResourceHealth = report;
             Changed?.Invoke();
         }
     }

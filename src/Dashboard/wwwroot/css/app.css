@@ -1,74 +1,114 @@
-/* The health dashboard's only style sheet. No framework, no web font: everything is served from the site itself.
-   Colours are roles (custom properties); the dark values replace the light ones when the viewer prefers dark.
-   A state is never colour alone: every state has an icon shape and a text label next to its colour. */
+/* The health dashboard's only style sheet. No framework, and nothing loaded from elsewhere: the two faces (Jost,
+   Roboto) are files of the page (the @font-face rules below), and the page reads in the fallbacks until they arrive.
+   It wears two brands, as the fleet health dashboard does (cmfleet-dashboard, "How it looks, and why"). The surfaces,
+   the lines, the links and the colours of the states are those of Octopus Deploy's dark screens, because every
+   system is released there and a reader comes from there. The logo in the bar, the navy of the diagram's boxes, the
+   primary blue of what is selected, focused or framed, the yellow and the face of the headings are Clear Measure's.
+   There is one theme, the dark one of the screen it mimics: no light values and no prefers-color-scheme.
+   Colours are roles (custom properties). A state is never colour alone: every state has an icon shape and a text
+   label next to its colour. */
 
-:root {
-  color-scheme: light dark;
-
-  --page: #f4f4f1;
-  --surface: #fcfcfb;
-  --ink: #0b0b0b;
-  --ink-secondary: #52514e;
-  --hairline: #e1e0d9;
-  --border: rgba(11, 11, 11, 0.12);
-  --link: #1f5fae;
-  --focus: #2a78d6;
-
-  /* Status: reserved for the states, never used as decoration. */
-  --good: #0ca30c;
-  --serious: #ec835a;
-  --critical: #d03b3b;
-  --pending: #898781;
-
-  --good-wash: #e9f6e9;
-  --serious-wash: #fdeee7;
-  --critical-wash: #fbe9e9;
-
-  /* The language bar of the "Code" card: identity, not state. Five hues in a fixed order (the largest language takes
-     the first), checked as neighbours for colour-vision deficiencies in both themes; the list under the bar names
-     every language in words, so no colour has to be told apart. */
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-4: #eda100;
-  --series-5: #e87ba4;
-  --series-other: #898781;
-
-  /* The mark of a deployment in flight: its own blue, not a state of health, and never alone: the dot's shape and the
-     sentence next to it say what is being deployed. The second value is for a dot on the ink of a selected button. */
-  --deploying: #0b63ce;
-  --deploying-on-ink: #6aa9ff;
-
-  --radius: 10px;
-  --gap: 1rem;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+/* The two faces, served by the page itself (wwwroot/fonts, each with its licence, the SIL Open Font License): the
+   Latin part of Jost as one variable file for the weights 500 to 700, and of Roboto in the three weights the page
+   uses. A character outside that part is drawn in the fallbacks. */
+@font-face {
+  font-family: Jost;
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("../fonts/jost-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --page: #0d0d0d;
-    --surface: #1a1a19;
-    --ink: #ffffff;
-    --ink-secondary: #c3c2b7;
-    --hairline: #2c2c2a;
-    --border: rgba(255, 255, 255, 0.12);
-    --link: #7fb2f0;
-    --focus: #3987e5;
+@font-face {
+  font-family: Roboto;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/roboto-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
-    --good-wash: #12260f;
-    --serious-wash: #33201a;
-    --critical-wash: #331a1a;
+@font-face {
+  font-family: Roboto;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/roboto-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
-    --series-5: #d55181;
+@font-face {
+  font-family: Roboto;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/roboto-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
-    --deploying: #6aa9ff;
-    --deploying-on-ink: #0b63ce;
-  }
+:root {
+  color-scheme: dark;
+
+  /* Octopus Deploy, dark: navy surfaces, one line colour, blue for links. */
+  --page: #111a23;
+  --bar: #1f303f;
+  --side: #16212c;
+  --surface: #111a23;
+  --raised: #1f303f;
+  --hover: #24394b;
+  --ink: #f4f6f8;
+  --ink-secondary: #9fb3c5;
+  --hairline: #2e475d;
+  --border: #2e475d;
+  --border-strong: #557c9e;
+  --link: #87bfec;
+
+  /* Clear Measure, as clearmeasure.com carries it: its primary blue, its navy, its deep navy, its pale blue and its
+     accent yellow; the sky blue is the logo's own. */
+  --cm-primary: #0085ca;
+  --cm-blue: #004b87;
+  --cm-deep: #043e6c;
+  --cm-light-blue: #cfeaff;
+  --cm-sky: #24abe1;
+  --cm-yellow: #eecb1a;
+  --focus: var(--cm-primary);
+
+  /* Status: reserved for the states, never used as decoration. Octopus's green for what is healthy, its orange for
+     what needs attention, its red for what failed (the lighter red is the one for words: 6.9 to 1 on the page). */
+  --good: #00ab62;
+  --good-strong: #00874d;
+  --serious: #f58d3a;
+  --critical: #d63d3d;
+  --critical-ink: #ff7a7a;
+  --pending: #557c9e;
+
+  --good-wash: #12302a;
+  --serious-wash: #3a2a1c;
+  --critical-wash: #3a1d22;
+
+  /* The language bar of the "Code" card: identity, not state. Five colours of the two brands in a fixed order (the
+     largest language takes the first), each next to one it differs from in lightness as well as hue; the list under
+     the bar names every language in words, so no colour has to be told apart. */
+  --series-1: #0085ca;
+  --series-2: #f58d3a;
+  --series-3: #00ab62;
+  --series-4: #eecb1a;
+  --series-5: #cfeaff;
+  --series-other: #557c9e;
+
+  /* The mark of a deployment in flight: the logo's sky blue, not a state of health, and never alone: the dot's shape
+     and the sentence next to it say what is being deployed. The second value is for a dot on a selected button. */
+  --deploying: #24abe1;
+  --deploying-on-ink: #cfeaff;
+
+  --radius: 4px;
+  --gap: 1rem;
+  --display: Jost, Futura, "Futura PT", "Century Gothic", "Trebuchet MS", Roboto, "Segoe UI", Arial, sans-serif;
+  --font: Roboto, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* Names of resources and addresses: Roboto too, as Octopus sets its data; only code keeps a fixed pitch. */
+  --font-data: Roboto, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 *,
@@ -91,12 +131,50 @@ body {
   line-height: 1.45;
 }
 
+/* The bar: Clear Measure's logo where Octopus has its own, and what the page is where Octopus names the space. It is
+   part of index.html, so it is there while the application loads and when it fails. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  min-height: 56px;
+  padding: 8px clamp(0.75rem, 3vw, 2rem);
+  background: var(--bar);
+}
+
+.topbar__brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar__brand img {
+  display: block;
+  width: auto;
+  height: 40px;
+}
+
+.topbar__space {
+  max-width: 100%;
+  padding: 7px 14px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--page);
+  font-family: var(--display);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 #app {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   max-width: 76rem;
-  min-height: 100vh;
+  min-height: calc(100vh - 56px);
   margin: 0 auto;
   padding: 1.25rem clamp(0.75rem, 3vw, 2rem) 1.5rem;
 }
@@ -112,10 +190,17 @@ ul {
   margin: 0;
 }
 
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--display);
+  font-weight: 700;
+}
+
 h1 {
   font-size: clamp(1.35rem, 2.5vw + 0.75rem, 1.9rem);
   line-height: 1.2;
-  letter-spacing: -0.01em;
 }
 
 h2 {
@@ -137,6 +222,7 @@ a {
   color: var(--link);
   text-underline-offset: 0.15em;
 }
+
 
 /* A link keeps its colour after it was followed: the page's links are places to look, not a reading list. */
 a:visited {
@@ -169,14 +255,6 @@ code {
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.75rem 2rem;
-}
-
-.eyebrow {
-  color: var(--ink-secondary);
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .page-header__status {
@@ -268,8 +346,8 @@ code {
 .field select {
   min-height: 2.25rem;
   padding: 0.3rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -287,7 +365,8 @@ code {
 
 .button:hover:not(:disabled),
 .field select:hover {
-  border-color: var(--ink-secondary);
+  border-color: var(--link);
+  background: var(--hover);
 }
 
 .button:disabled {
@@ -346,7 +425,7 @@ main {
 .deployable__header h3 {
   padding: 0.4rem 0;
   color: var(--ink-secondary);
-  font-family: var(--font-mono);
+  font-family: var(--font-data);
   font-weight: 600;
 }
 
@@ -367,7 +446,7 @@ main {
   padding: 0.4rem 0.75rem;
   border: 1px solid var(--border);
   border-left: 4px solid var(--pending);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
   font-size: 0.92rem;
 }
@@ -447,7 +526,7 @@ main {
   padding: 0.3rem 0.75rem;
   border: 1px solid var(--border);
   border-left: 4px solid var(--pending);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink-secondary);
   font-size: 0.88rem;
@@ -578,7 +657,7 @@ main {
 }
 
 .tile__name {
-  font-family: var(--font-mono);
+  font-family: var(--font-data);
 }
 
 .tile__detail {
@@ -608,7 +687,7 @@ main {
   gap: 0.4rem;
   padding: 0.15rem 0.6rem 0.15rem 0.4rem;
   border-radius: 999px;
-  background: var(--page);
+  background: var(--raised);
   font-size: 0.88rem;
   font-weight: 650;
   white-space: nowrap;
@@ -648,7 +727,7 @@ main {
 }
 
 .state-icon--unhealthy .state-icon__mark {
-  stroke: #0b0b0b;
+  stroke: #111a23;
 }
 
 .state-icon--unreachable {
@@ -1134,6 +1213,56 @@ main {
   font-size: 0.82rem;
 }
 
+/* What the file says more about a deployment, after its sentence: who is responsible, since when, who started it. */
+.deployments__detail {
+  color: var(--ink-secondary);
+  font-weight: 400;
+}
+
+.deployments__detail::before {
+  content: " · ";
+}
+
+/* The activity lines after the marks: a deployment freeze, and the last deployment that ended. An icon of the
+   line's kind stands where a mark has its dot; the words say it. A freeze in force is ink, as a mark in flight is;
+   the last deployment that failed has the red of words. */
+.activity-icon {
+  flex: none;
+  margin-top: 0.3em;
+  overflow: visible;
+  color: var(--ink-secondary);
+}
+
+.activity-icon__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.activity-icon--frozen,
+.activity-icon--freeze {
+  color: var(--deploying);
+}
+
+.activity-icon--freeze .activity-icon__line {
+  stroke-width: 1;
+}
+
+.activity-icon--failed {
+  color: var(--critical-ink);
+}
+
+.deployments__line--frozen {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.deployments__line--failed {
+  color: var(--critical-ink);
+}
+
 .deploy-dot {
   flex: none;
   overflow: visible;
@@ -1256,10 +1385,11 @@ main {
   padding: 0.35rem 1rem;
   border: 1px solid transparent;
   border-bottom: 3px solid transparent;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   background: none;
   color: var(--ink-secondary);
   font: inherit;
+  font-family: var(--display);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1270,9 +1400,9 @@ main {
 
 /* The current view: a heavy underline and the ink colour, not the colour alone. */
 .views__tab[aria-current="page"] {
-  border-color: var(--hairline) var(--hairline) var(--ink);
-  background: var(--surface);
-  color: var(--ink);
+  border-color: var(--hairline) var(--hairline) var(--cm-primary);
+  background: var(--raised);
+  color: #ffffff;
 }
 
 /* ---------- Runtime view ---------- */
@@ -1296,10 +1426,13 @@ main {
   gap: 0.4rem;
 }
 
-.button--selected {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--page);
+/* Selected: Clear Measure's navy, edged with its primary blue. White on the navy is 8.9 to 1 (on the primary blue
+   alone it would be 4.0 to 1, too little for a button's words). */
+.button--selected,
+.button--selected:hover:not(:disabled) {
+  border-color: var(--cm-primary);
+  background: var(--cm-blue);
+  color: #ffffff;
 }
 
 /* An environment something is being deployed to: the mark's dot after its name. */
@@ -1322,16 +1455,16 @@ main {
   margin-left: auto;
 }
 
-/* The diagram is a sheet of paper in both themes: PlantUML drew it for a light background. Wider than the page's
-   column where the window allows, and scrolling sideways inside its own frame where it does not. */
+/* The diagram is drawn on the page's own navy: PlantUML drew it for a white sheet, and the rules under "The diagram's
+   colours" give every shape and word of it the page's colours. Wider than the page's column where the window allows,
+   and scrolling sideways inside its own frame where it does not. */
 .runtime__canvas {
   margin-inline: calc(-1 * max(0px, min(50vw - 50% - 1rem, 25rem)));
   padding: 0.5rem;
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #ffffff;
-  color-scheme: light;
+  background: var(--page);
 }
 
 .runtime__canvas[hidden] {
@@ -1391,11 +1524,11 @@ main {
 .runtime-legend__swatch {
   flex: none;
   padding: 1px;
-  border-radius: 4px;
-  background: #ffffff;
+  border-radius: var(--radius);
+  background: var(--page);
 }
 
-/* The shapes of a deployment's mark, in the diagram's blue on the diagram's white. */
+/* The shapes of a deployment's mark, in the mark's sky blue on the page. */
 .runtime-legend__swatch--dot {
   display: inline-flex;
   align-items: center;
@@ -1405,15 +1538,30 @@ main {
 }
 
 .runtime-legend__swatch--dot .deploy-dot {
-  color: #0b57d0;
+  color: var(--deploying);
 }
 
-/* The diagram's states. PlantUML writes its colours as attributes and inline styles, so these rules are !important.
-   The diagram is always light (see .runtime__canvas): these colours are not themed. Every state also has a word in
-   the diagram, and the lines differ in dash as well as colour. */
+/* The diagram's colours. PlantUML writes its own as attributes and inline styles for a white sheet, so the rules that
+   replace a stroke or a state are !important. Clear Measure's navy is the box, its deep navy the box of what the page
+   does not ask (the database, a static site, a dependency, the browser), its primary blue the frames and the arrows;
+   the states are Octopus's green, orange and red. Every state also has a word in the diagram, and the lines differ in
+   dash as well as colour. */
 .runtime-svg text {
   font-family: var(--font);
 }
+
+/* Before any state: the frames, the boxes, the arrows and their words as the page draws them. */
+.rt-region > .rt-frame { fill: rgba(46, 71, 93, 0.22) !important; stroke: #0085ca !important; }
+.rt-region > text,
+.rt-region > a > text { fill: #9fb3c5; }
+.rt-region > text.rt-name,
+.rt-region > a > text.rt-name { fill: #f4f6f8; }
+.rt-node > .rt-box,
+.rt-node > ellipse { fill: #043e6c !important; stroke: #557c9e !important; }
+.rt-edge > .rt-edge-line { stroke: #0085ca !important; }
+.rt-edge > .rt-edge-head { fill: #0085ca !important; stroke: #0085ca !important; }
+.rt-edge > text { fill: #9fb3c5; }
+.rt-edge > a > text { fill: #87bfec; }
 
 .rt-node > .rt-box,
 .rt-node > .rt-box-line,
@@ -1423,45 +1571,50 @@ main {
   transition: fill 0.3s, stroke 0.3s, stroke-width 0.3s;
 }
 
-.rt-node[data-rt-state="healthy"] > .rt-box { fill: #24609c !important; stroke: #2e7d32 !important; stroke-width: 4px !important; stroke-dasharray: none !important; }
-.rt-node[data-rt-state="unhealthy"] > .rt-box { fill: #b71c1c !important; stroke: #4a0000 !important; stroke-width: 4px !important; stroke-dasharray: 9 5 !important; }
-.rt-node[data-rt-state="unreachable"] > .rt-box { fill: #5f5f5f !important; stroke: #111111 !important; stroke-width: 4px !important; stroke-dasharray: 2 4 !important; }
-.rt-node[data-rt-state="checking"] > .rt-box { fill: #607d8b !important; stroke: #37474f !important; stroke-width: 2px !important; stroke-dasharray: 6 4 !important; }
-.rt-node[data-rt-state="neutral"] > .rt-box { fill: #455a64 !important; stroke: #263238 !important; stroke-width: 1px !important; stroke-dasharray: none !important; }
+/* A box's state: the fill and the border's colour, width and dash. Healthy is the navy box in a green border;
+   unhealthy the red wash in a dashed red border; unreachable the line colour in a dotted pale border. White words
+   are 8.9 to 1 on the navy, 15 to 1 on the red wash and 9.7 to 1 on the line colour. */
+.rt-node[data-rt-state="healthy"] > .rt-box { fill: #004b87 !important; stroke: #00ab62 !important; stroke-width: 4px !important; stroke-dasharray: none !important; }
+.rt-node[data-rt-state="unhealthy"] > .rt-box { fill: #3a1d22 !important; stroke: #d63d3d !important; stroke-width: 4px !important; stroke-dasharray: 9 5 !important; }
+.rt-node[data-rt-state="unreachable"] > .rt-box { fill: #2e475d !important; stroke: #9fb3c5 !important; stroke-width: 4px !important; stroke-dasharray: 2 4 !important; }
+.rt-node[data-rt-state="checking"] > .rt-box { fill: #1f303f !important; stroke: #557c9e !important; stroke-width: 2px !important; stroke-dasharray: 6 4 !important; }
+.rt-node[data-rt-state="neutral"] > .rt-box { fill: #043e6c !important; stroke: #557c9e !important; stroke-width: 1px !important; stroke-dasharray: none !important; }
 .rt-node[data-rt-state] > .rt-box-line { stroke: rgba(255, 255, 255, 0.6) !important; }
 
-.rt-region[data-rt-state="serving"] > .rt-frame { fill: #eef7e6 !important; stroke: #2e7d32 !important; stroke-width: 2.5px !important; stroke-dasharray: none !important; }
-.rt-region[data-rt-state="standby"] > .rt-frame { fill: #f7f8f9 !important; stroke: #78909c !important; stroke-width: 1.5px !important; stroke-dasharray: 7 5 !important; }
-.rt-region[data-rt-state="down"] > .rt-frame { fill: #fdecec !important; stroke: #b71c1c !important; stroke-width: 2.5px !important; stroke-dasharray: 9 5 !important; }
-.rt-region[data-rt-state="checking"] > .rt-frame { fill: #fafafa !important; stroke: #90a4ae !important; stroke-dasharray: 3 4 !important; }
+.rt-region[data-rt-state="serving"] > .rt-frame { fill: rgba(0, 171, 98, 0.12) !important; stroke: #00ab62 !important; stroke-width: 2.5px !important; stroke-dasharray: none !important; }
+.rt-region[data-rt-state="standby"] > .rt-frame { fill: rgba(46, 71, 93, 0.22) !important; stroke: #557c9e !important; stroke-width: 1.5px !important; stroke-dasharray: 7 5 !important; }
+.rt-region[data-rt-state="down"] > .rt-frame { fill: rgba(214, 61, 61, 0.14) !important; stroke: #d63d3d !important; stroke-width: 2.5px !important; stroke-dasharray: 9 5 !important; }
+.rt-region[data-rt-state="checking"] > .rt-frame { fill: rgba(46, 71, 93, 0.22) !important; stroke: #557c9e !important; stroke-dasharray: 3 4 !important; }
 
-.rt-edge[data-rt-state="active"] > .rt-edge-line { stroke: #2e7d32 !important; stroke-width: 3.5px !important; stroke-dasharray: none !important; }
-.rt-edge[data-rt-state="active"] > .rt-edge-head { fill: #2e7d32 !important; stroke: #2e7d32 !important; }
-.rt-edge[data-rt-state="idle"] > .rt-edge-line { stroke: #90a4ae !important; stroke-width: 1.5px !important; stroke-dasharray: 2 5 !important; }
-.rt-edge[data-rt-state="idle"] > .rt-edge-head { fill: #90a4ae !important; stroke: #90a4ae !important; }
-.rt-edge[data-rt-state="down"] > .rt-edge-line { stroke: #b71c1c !important; stroke-width: 2.5px !important; stroke-dasharray: 9 5 !important; }
-.rt-edge[data-rt-state="down"] > .rt-edge-head { fill: #b71c1c !important; stroke: #b71c1c !important; }
-.rt-edge[data-rt-state="checking"] > .rt-edge-line { stroke: #78909c !important; stroke-dasharray: 3 4 !important; }
+.rt-edge[data-rt-state="active"] > .rt-edge-line { stroke: #00ab62 !important; stroke-width: 3.5px !important; stroke-dasharray: none !important; }
+.rt-edge[data-rt-state="active"] > .rt-edge-head { fill: #00ab62 !important; stroke: #00ab62 !important; }
+.rt-edge[data-rt-state="idle"] > .rt-edge-line { stroke: #557c9e !important; stroke-width: 1.5px !important; stroke-dasharray: 2 5 !important; }
+.rt-edge[data-rt-state="idle"] > .rt-edge-head { fill: #557c9e !important; stroke: #557c9e !important; }
+.rt-edge[data-rt-state="down"] > .rt-edge-line { stroke: #d63d3d !important; stroke-width: 2.5px !important; stroke-dasharray: 9 5 !important; }
+.rt-edge[data-rt-state="down"] > .rt-edge-head { fill: #d63d3d !important; stroke: #d63d3d !important; }
+.rt-edge[data-rt-state="checking"] > .rt-edge-line { stroke: #557c9e !important; stroke-dasharray: 3 4 !important; }
 
-/* Tiles: drawn on the node's box, white on its colour. */
+/* Tiles: drawn on the node's box, white on its colour. The badge is a white pill, so its word reads on a box of any
+   state: Octopus's strong green (4.6 to 1 on white), its red (4.6 to 1) and the page's navy. */
 .rt-tile text { fill: #ffffff; }
 .rt-badge__back { fill: #ffffff; }
 .rt-badge__text { font-weight: 700; }
-.rt-tile--healthy .rt-badge__text { fill: #1b5e20; }
-.rt-tile--unhealthy .rt-badge__text { fill: #b71c1c; }
-.rt-tile--unreachable .rt-badge__text { fill: #111111; }
+.rt-tile--healthy .rt-badge__text { fill: #00874d; }
+.rt-tile--unhealthy .rt-badge__text { fill: #d63d3d; }
+.rt-tile--unreachable .rt-badge__text { fill: #111a23; }
 .rt-tile--checking .rt-badge__text,
-.rt-tile--neutral .rt-badge__text { fill: #37474f; }
-.rt-tile--healthy .rt-badge__icon .rt-icon__fill { fill: #2e7d32; }
-.rt-tile--unhealthy .rt-badge__icon .rt-icon__fill { fill: #b71c1c; }
-.rt-tile--unreachable .rt-badge__icon .rt-icon__fill { fill: #111111; }
+.rt-tile--neutral .rt-badge__text { fill: #1f303f; }
+.rt-tile--healthy .rt-badge__icon .rt-icon__fill { fill: #00874d; }
+.rt-tile--unhealthy .rt-badge__icon .rt-icon__fill { fill: #d63d3d; }
+.rt-tile--unreachable .rt-badge__icon .rt-icon__fill { fill: #111a23; }
 .rt-line--strong .rt-row__text { font-weight: 700; }
 .rt-tile .rt-line--muted .rt-row__text { fill: rgba(255, 255, 255, 0.82); }
 .rt-line--serving .rt-row__text,
 .rt-line--differs .rt-row__text,
 .rt-line--warn .rt-row__text { font-weight: 700; }
+/* What differs or warns: Clear Measure's yellow, 5.8 to 1 on the navy box and 10 to 1 on the red wash. */
 .rt-tile .rt-line--differs .rt-row__text,
-.rt-tile .rt-line--warn .rt-row__text { fill: #ffe0b2; }
+.rt-tile .rt-line--warn .rt-row__text { fill: #eecb1a; }
 
 .rt-icon__fill { fill: #ffffff; }
 .rt-icon__mark,
@@ -1475,59 +1628,82 @@ main {
 }
 .rt-icon__fill + .rt-icon__mark { stroke: #ffffff; }
 .rt-badge__icon .rt-icon__ring,
-.rt-badge__icon .rt-icon__line { stroke: #37474f; }
+.rt-badge__icon .rt-icon__line { stroke: #1f303f; }
 .rt-row__icon .rt-icon__fill { fill: #ffffff; }
-.rt-row__icon .rt-icon__fill + .rt-icon__mark { stroke: #24609c; }
-.rt-tile--unhealthy .rt-row__icon .rt-icon__fill + .rt-icon__mark { stroke: #b71c1c; }
+.rt-row__icon .rt-icon__fill + .rt-icon__mark { stroke: #004b87; }
+.rt-tile--unhealthy .rt-row__icon .rt-icon__fill + .rt-icon__mark { stroke: #d63d3d; }
 .rt-line--differs .rt-icon__line,
-.rt-line--warn .rt-icon__fill { stroke: #ffe0b2; fill: none; }
-.rt-line--warn .rt-icon__fill { fill: #ffe0b2; }
-.rt-line--warn .rt-icon__mark { stroke: #b71c1c; }
+.rt-line--warn .rt-icon__fill { stroke: #eecb1a; fill: none; }
+.rt-line--warn .rt-icon__fill { fill: #eecb1a; }
+.rt-line--warn .rt-icon__mark { stroke: #3a1d22; }
 
 /* The marks of a detailed health check on a tile: a check, a warning triangle, a cross or dots, one per entry. */
 .rt-tile .rt-check.rt-check--healthy .rt-row__icon .rt-icon__fill,
 .rt-tile .rt-check.rt-check--failed .rt-row__icon .rt-icon__fill { fill: #ffffff; stroke: none; }
-.rt-tile .rt-check.rt-check--healthy .rt-row__icon .rt-icon__mark { stroke: #1b5e20; }
-.rt-tile .rt-check.rt-check--failed .rt-row__icon .rt-icon__mark { stroke: #b71c1c; }
-.rt-tile .rt-check.rt-check--degraded .rt-row__icon .rt-icon__fill { fill: #ffe0b2; stroke: none; }
-.rt-tile .rt-check.rt-check--degraded .rt-row__icon .rt-icon__mark { stroke: #7a3b00; }
+.rt-tile .rt-check.rt-check--healthy .rt-row__icon .rt-icon__mark { stroke: #00874d; }
+.rt-tile .rt-check.rt-check--failed .rt-row__icon .rt-icon__mark { stroke: #d63d3d; }
+.rt-tile .rt-check.rt-check--degraded .rt-row__icon .rt-icon__fill { fill: #eecb1a; stroke: none; }
+.rt-tile .rt-check.rt-check--degraded .rt-row__icon .rt-icon__mark { stroke: #3a1d22; }
 .rt-tile .rt-check.rt-check--unknown .rt-row__icon .rt-icon__ring,
 .rt-tile .rt-check.rt-check--unknown .rt-row__icon .rt-icon__line { stroke: #ffffff; }
 
-/* The mark of a deployment in a tile's corner: the marker's blue on a white disc, so it reads on a box of any state.
-   Filled: executing (the white ring that leaves it is the pulse); hollow: queued; a dot in a ring: waiting for a
-   person; small: ended. */
-.rt-deploy__back,
-.rt-deploy__pulse { fill: #ffffff; }
-.rt-deploy__fill { fill: #0b57d0; }
-.rt-deploy__ring { fill: none; stroke: #0b57d0; stroke-width: 1.6; }
-.runtime-svg a.rt-link:focus-visible .rt-deploy__back { stroke: #ffb300; stroke-width: 3px; }
+/* The activity lines of a tile: what is being deployed to the node's deployable, a deployment freeze, the last
+   deployment that ended. Their icons are the shapes of the deployment's dot and, for a freeze, a snowflake, in the
+   mark's sky blue (3.5 to 1 on the navy box, more on the others); the words stay white, heavier for what is in
+   flight or in force, quieter for what is only coming or over, and the yellow of a warning for a deployment that
+   failed. Never colour alone: the words say the kind. */
+.rt-tile .rt-line--waiting .rt-row__icon .rt-icon__ring,
+.rt-tile .rt-line--queued .rt-row__icon .rt-icon__ring,
+.rt-tile .rt-line--frozen .rt-row__icon .rt-icon__line,
+.rt-tile .rt-line--freeze .rt-row__icon .rt-icon__line { stroke: #24abe1; }
+.rt-tile .rt-line--freeze .rt-row__icon .rt-icon__line { stroke-width: 1; }
+.rt-icon__dot,
+.rt-tile .rt-line--waiting .rt-row__icon .rt-icon__dot,
+.rt-tile .rt-line--deploying .rt-row__icon .rt-icon__dot { fill: #24abe1; }
+.rt-line--waiting .rt-row__text,
+.rt-line--deploying .rt-row__text,
+.rt-line--frozen .rt-row__text,
+.rt-line--failed .rt-row__text { font-weight: 700; }
+.rt-tile .rt-line--freeze .rt-row__text,
+.rt-tile .rt-line--deployed .rt-row__text,
+.rt-tile .rt-line--canceled .rt-row__text { fill: rgba(255, 255, 255, 0.82); }
+.rt-tile .rt-line--failed .rt-row__text { fill: #eecb1a; }
+.rt-tile .rt-line--failed .rt-row__icon .rt-icon__line { stroke: #eecb1a; }
 
-.rt-bar--healthy { fill: #a5d6a7; }
-.rt-bar--unhealthy { fill: #ffcc80; }
-.rt-bar--unreachable { fill: #eeeeee; }
+/* The mark of a deployment in a tile's corner: the logo's sky blue on a disc of the page's navy in a white ring, so
+   it reads on a box of any state. Filled: executing (the ring that leaves it is the pulse); hollow: queued; a dot in
+   a ring: waiting for a person; small: ended. */
+.rt-deploy__back { fill: #111a23; stroke: #ffffff; stroke-width: 1.5; }
+.rt-deploy__pulse { fill: #24abe1; }
+.rt-deploy__fill { fill: #24abe1; }
+.rt-deploy__ring { fill: none; stroke: #24abe1; stroke-width: 1.6; }
+.runtime-svg a.rt-link:focus-visible .rt-deploy__back { stroke: #eecb1a; stroke-width: 3px; }
+
+.rt-bar--healthy { fill: #00ab62; }
+.rt-bar--unhealthy { fill: #f58d3a; }
+.rt-bar--unreachable { fill: #ff7a7a; }
 .rt-bar--empty { fill: rgba(255, 255, 255, 0.3); }
 
 /* A region's mark: a pill with an icon and words. */
-.rt-mark__text { fill: #37474f; font-weight: 700; }
-.rt-mark__back { fill: #eceff1; }
-.rt-mark--serving .rt-mark__back { fill: #2e7d32; }
-.rt-mark--down .rt-mark__back { fill: #b71c1c; }
+.rt-mark__text { fill: #f4f6f8; font-weight: 700; }
+.rt-mark__back { fill: #1f303f; }
+.rt-mark--serving .rt-mark__back { fill: #00874d; }
+.rt-mark--down .rt-mark__back { fill: #d63d3d; }
 .rt-mark--serving .rt-mark__text,
 .rt-mark--down .rt-mark__text { fill: #ffffff; }
 .rt-mark--serving .rt-icon__fill,
 .rt-mark--down .rt-icon__fill { fill: #ffffff; }
-.rt-mark--serving .rt-icon__mark { stroke: #2e7d32; }
-.rt-mark--down .rt-icon__mark { stroke: #b71c1c; }
+.rt-mark--serving .rt-icon__mark { stroke: #00874d; }
+.rt-mark--down .rt-icon__mark { stroke: #d63d3d; }
 .rt-mark--standby .rt-icon__ring,
 .rt-mark--standby .rt-icon__line,
 .rt-mark--checking .rt-icon__ring,
-.rt-mark--checking .rt-icon__line { stroke: #37474f; }
-/* The slate of the number lines' roles: 5.6 to 1 on the sheet (the lighter #607d8b was 4.4 to 1). */
-.rt-mark--neutral .rt-mark__text { fill: #546e7a; font-weight: 400; font-style: italic; }
+.rt-mark--checking .rt-icon__line { stroke: #f4f6f8; }
+/* The muted ink of the number lines' roles: 7.9 to 1 on the page. */
+.rt-mark--neutral .rt-mark__text { fill: #9fb3c5; font-weight: 400; font-style: italic; }
 
 /* Links in the diagram: real <a> elements. Underlined, because the text keeps the colour of its place; the focus ring
-   is drawn around the words. */
+   is drawn around the words, in Clear Measure's yellow (the primary blue would be lost on the blue boxes). */
 .runtime-svg a.rt-link { cursor: pointer; }
 /* Chrome paints the words of a followed link inside SVG text black when their fill is inherited from outside the link
    (white on a tile became unreadable): the fill and colour are inherited explicitly, followed or not. */
@@ -1537,32 +1713,40 @@ main {
 .runtime-svg text a.rt-link { text-decoration: underline; text-underline-offset: 2px; }
 .runtime-svg a.rt-link:hover text,
 .runtime-svg text a.rt-link:hover { text-decoration-thickness: 2px; }
-.runtime-svg a.rt-link:focus-visible { outline: 3px solid #ffb300; outline-offset: 2px; border-radius: 3px; }
-.runtime-svg a.rt-link:focus-visible .rt-badge__back { stroke: #ffb300; stroke-width: 3px; }
+.runtime-svg a.rt-link:focus-visible { outline: 3px solid #eecb1a; outline-offset: 2px; border-radius: 3px; }
+.runtime-svg a.rt-link:focus-visible .rt-badge__back { stroke: #eecb1a; stroke-width: 3px; }
 
-/* Trends: a thin line after the number, the last reading as a dot. White on a tile, slate on the sheet. */
-.rt-trend__line { fill: none; stroke: #546e7a; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.rt-trend__now { fill: #24609c; }
+/* A box that leads somewhere (its name is a link): a click anywhere on it opens the same address, so the whole box
+   shows the pointer, and lights up under it. A frame lights up only where the pointer is on the frame itself: the
+   boxes inside it are their own. */
+.runtime-svg .rt-linked { cursor: pointer; }
+.runtime-svg .rt-node.rt-linked:hover > .rt-box,
+.runtime-svg .rt-node.rt-linked:hover > ellipse,
+.runtime-svg .rt-region.rt-linked:hover > .rt-frame { filter: brightness(1.25); }
+
+/* Trends: a thin line after the number, the last reading as a dot. White on a tile, muted ink on the page. */
+.rt-trend__line { fill: none; stroke: #9fb3c5; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.rt-trend__now { fill: #0085ca; }
 .rt-trend__hit { fill: transparent; stroke: none; }
 .rt-tile .rt-trend__line { stroke: rgba(255, 255, 255, 0.85); }
 .rt-tile .rt-trend__now { fill: #ffffff; }
-.rt-edge[data-rt-state="active"] .rt-trend__line { stroke: #2e7d32; }
-.rt-edge[data-rt-state="active"] .rt-trend__now { fill: #1b5e20; }
+.rt-edge[data-rt-state="active"] .rt-trend__line { stroke: #00ab62; }
+.rt-edge[data-rt-state="active"] .rt-trend__now { fill: #00ab62; }
 
 /* A relationship's number line: a dashed frame keeps the place of the number. */
-.rt-number__hook { fill: #ffffff; stroke: #78909c; stroke-width: 1; stroke-dasharray: 3 3; }
-.rt-number--counted .rt-number__hook { stroke: #455a64; stroke-dasharray: none; }
-.rt-number__text { fill: #37474f; }
+.rt-number__hook { fill: #111a23; stroke: #557c9e; stroke-width: 1; stroke-dasharray: 3 3; }
+.rt-number--counted .rt-number__hook { stroke: #9fb3c5; stroke-dasharray: none; }
+.rt-number__text { fill: #f4f6f8; }
 .rt-number__value { font-weight: 700; }
-.rt-number__role { fill: #546e7a; }
+.rt-number__role { fill: #9fb3c5; }
 .rt-edge[data-rt-state="active"] .rt-number__role,
-.rt-edge[data-rt-state="active"] .rt-number__text { fill: #1b5e20; }
-.rt-edge[data-rt-state="down"] .rt-number__role { fill: #b71c1c; }
+.rt-edge[data-rt-state="active"] .rt-number__text { fill: #00ab62; }
+.rt-edge[data-rt-state="down"] .rt-number__role { fill: #ff7a7a; }
 
 /* The legend's swatches use the same classes, at a smaller line. */
 .runtime-legend .rt-box { stroke-width: 2.5px !important; }
 .runtime-legend .rt-frame { stroke-width: 1.5px !important; }
-.runtime-legend .rt-edge-line { stroke: #78909c; }
+.runtime-legend .rt-edge-line { stroke: #0085ca; }
 
 /* ---------- Cluster view ---------- */
 
@@ -1865,7 +2049,7 @@ main {
 .table-scroll {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
 }
 
@@ -1908,7 +2092,7 @@ main {
 }
 
 .grid__name {
-  font-family: var(--font-mono);
+  font-family: var(--font-data);
   font-size: 0.82rem;
   white-space: nowrap;
 }
@@ -2002,7 +2186,7 @@ main {
 
 .pod__name {
   color: var(--ink-secondary);
-  font-family: var(--font-mono);
+  font-family: var(--font-data);
   font-size: 0.76rem;
   white-space: nowrap;
 }
@@ -2166,7 +2350,7 @@ main {
   max-height: 13.5rem;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface);
 }
 
@@ -2213,7 +2397,7 @@ main {
 }
 
 .event__where {
-  font-family: var(--font-mono);
+  font-family: var(--font-data);
   font-size: 0.82rem;
   white-space: nowrap;
 }
@@ -2279,7 +2463,6 @@ main {
   border-top: 4px solid var(--critical);
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.25);
 }
 
 #blazor-error-ui .dismiss {

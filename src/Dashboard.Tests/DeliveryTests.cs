@@ -9,6 +9,10 @@ public class DeliveryTests
 
     private static readonly DeliveryReport Report = DeliveryReport.Parse(Optics.Delivery)!;
 
+    private static PersonSignOff? PersonSignOffOf(string signOff) =>
+        DeliveryReport.Parse($$"""{ "environments": [ { "name": "prod", "deployables": [ { "name": "dashboard", "lastPersonSignOff": {{signOff}} } ] } ] }""")!
+            .Find("prod", "dashboard")!.LastPersonSignOff;
+
     [Fact]
     public void TheDeliveryFileIsRead()
     {
@@ -29,7 +33,13 @@ public class DeliveryTests
                 new BehindFirst(2, 3.4),
                 4,
                 0,
-                new Uri("https://octopus.example.net/r/2.4.14")),
+                new Uri("https://octopus.example.net/r/2.4.14"),
+                new PersonSignOff(
+                    "2.4.11",
+                    "pat.morgan",
+                    new DateTimeOffset(2026, 10, 1, 15, 12, 41, TimeSpan.Zero),
+                    "Reviewed with the customer",
+                    new Uri("https://octopus.example.net/r/2.4.11"))),
             ui);
         Assert.Equal(new FailoverTest("uat", new DateTimeOffset(2026, 10, 4, 5, 0, 0, TimeSpan.Zero), 44), Report.Failover);
         Assert.Null(Report.Find("prod", "ui"));
@@ -44,6 +54,7 @@ public class DeliveryTests
 
         Assert.Null(first.SignedOffBy);
         Assert.Null(first.Reason);
+        Assert.Null(first.LastPersonSignOff);
         Assert.Null(DeliveryText.Behind(first.Behind, "tdd", "tdd"));
     }
 
@@ -66,6 +77,55 @@ public class DeliveryTests
         Assert.Null(report.Generated);
         Assert.Null(DeliveryText.Frequency(report.Find("uat", "ui")!));
     }
+
+    [Fact]
+    public void TheLastSignOffByAPersonMayBeAnOlderDeploymentThanTheOneTheEntryIsAbout()
+    {
+        var ui = Report.Find("uat", "ui")!;
+
+        Assert.Equal("cm-ai-ops", ui.SignedOffBy);
+        Assert.Equal("2.4.14", ui.Version);
+        Assert.Equal("2.4.11", ui.LastPersonSignOff!.Version);
+        Assert.Equal("pat.morgan", ui.LastPersonSignOff.By);
+        Assert.Equal("3 d ago", TimeText.Ago(ui.LastPersonSignOff.At!.Value, Now));
+    }
+
+    [Fact]
+    public void APersonOftenGivesNoReasonAndTheSignOffIsStillOne()
+    {
+        var signOff = PersonSignOffOf("""{ "version": "1.0.30+4f2a", "by": " pat.morgan ", "at": null, "reason": null, "releaseUrl": "https://octopus.example.net/r/1.0.30" }""");
+
+        Assert.Equal(new PersonSignOff("1.0.30", "pat.morgan", null, null, new Uri("https://octopus.example.net/r/1.0.30")), signOff);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": "1.0.30" }""", "1.0.30", null)]
+    [InlineData("""{ "by": "pat.morgan" }""", null, "pat.morgan")]
+    [InlineData("""{ "version": "1.0.30", "by": 7, "at": "yesterday", "reason": "", "releaseUrl": "releases/1.0.30" }""", "1.0.30", null)]
+    public void EveryPartOfAPersonsSignOffIsOptional(string signOff, string? version, string? by) =>
+        Assert.Equal(new PersonSignOff(version, by, null, null, null), PersonSignOffOf(signOff));
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{ }")]
+    [InlineData("""{ "version": null, "by": null, "at": "2026-10-08T21:12:41Z", "reason": "Looks right", "releaseUrl": "https://octopus.example.net/r/1.0.30" }""")]
+    [InlineData("""{ "version": "", "by": " " }""")]
+    [InlineData("\"pat.morgan\"")]
+    [InlineData("[ ]")]
+    public void WithoutAVersionAndWithoutAPersonThereIsNoSignOffByAPerson(string signOff) => Assert.Null(PersonSignOffOf(signOff));
+
+    [Fact]
+    public void AnEntryOfAnOlderFileHasNoSignOffByAPerson()
+    {
+        Assert.Null(Report.Find("uat", "dashboard")!.LastPersonSignOff);
+        Assert.Null(Report.Find("uat", "system")!.LastPersonSignOff);
+    }
+
+    [Fact]
+    public void TheRowOfAPersonsSignOffSaysWhatItIs() =>
+        Assert.Equal(
+            "The newest deployment here that a person signed off; automation signs off the others with a recorded reason",
+            DeliveryText.PersonSignOffHelp);
 
     [Fact]
     public void AFileWithTheFailoverTestOnlyIsAReport() =>

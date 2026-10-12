@@ -6,15 +6,6 @@
     <header class="cluster__header">
         <h2 id="cluster-title">Cluster@(Cluster.Info.Name is { } name ? $": {name}" : string.Empty)</h2>
     </header>
-    <p class="help">
-        Two sources, read with every check of this page. Live, from inside the cluster: a collector writes its nodes,
-        namespaces, pods and volumes to a public file every few seconds. Slow, from Azure: a scheduled workflow publishes
-        what Azure itself says about the AKS service several times an hour. Where the two differ, the difference is
-        worth a look: Azure can report a service available whose pods do not answer, and a stopped cluster reports
-        nothing at all. CPU is in cores, or in millicores (m, a thousandth of a core); memory in MiB and GiB. A link
-        opens the Azure portal in a new tab, which asks you to sign in.
-    </p>
-
     @if (Cluster.Status is null && Cluster.Service is null)
     {
         <p class="empty">The topology names the cluster without an address to read: neither <code>statusUrl</code> nor <code>serviceUrl</code>.</p>

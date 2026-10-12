@@ -16,6 +16,12 @@ public sealed record TrafficPlan(string Environment, IReadOnlyList<Uri> Addresse
     /// <summary>How long one press sends: the counters' window is one minute.</summary>
     public const int Seconds = 60;
 
+    /// <summary>
+    /// How long a request waits for its answer before the browser gives it up: as long as a check of the page waits
+    /// (<see cref="NodeProber.DefaultTimeout"/>). So a run is over this long after its last request at the latest.
+    /// </summary>
+    public const int AnswerWithinSeconds = 10;
+
     /// <summary>How often the page checks while the traffic runs, so the numbers follow it.</summary>
     public const int CheckEverySeconds = 10;
 

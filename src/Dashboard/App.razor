@@ -12,7 +12,6 @@
 <header class="page-header">
     <div class="page-header__top">
         <div class="page-header__title">
-            <p class="eyebrow">Health dashboard</p>
             <h1>@(_monitor?.Topology.System.Name ?? "Health dashboard")</h1>
         </div>
         <div class="page-header__status">
@@ -71,7 +70,7 @@
         }
         <label class="field">
             <span>Probe</span>
-            <select value="@_probe" title="@ProbeHelp" aria-describedby="probe-help" @onchange="OnProbeChanged">
+            <select value="@_probe" title="@ProbeHelp" @onchange="OnProbeChanged">
                 <option value="@ProbeKind.Health">Health check</option>
                 <option value="@ProbeKind.Liveness">Liveness</option>
             </select>
@@ -79,7 +78,6 @@
         <button type="button" class="button button--quiet" @onclick="CheckNow">Check now</button>
         <button type="button" class="button button--quiet" disabled="@_loading" @onclick="ReloadTopologyAsync">Reload topology</button>
     </div>
-    <p id="probe-help" class="help">@ProbeHelp</p>
 </header>
 
 @* Renderings of one monitor: the checks, the interval and the probe above apply to all. The address keeps the
@@ -101,7 +99,7 @@
     @if (_monitor is { } runtimeMonitor && View == DashboardView.Runtime)
     {
         <RuntimeView Monitor="runtimeMonitor" Environment="@_address.Environment" EnvironmentChanged="OnRuntimeEnvironmentChangedAsync"
-                     Page="PageAddress" Zone="Zone" Now="Time.GetUtcNow()" />
+                     ProbesDue="OnRuntimeProbesDue" Page="PageAddress" Zone="Zone" Now="Time.GetUtcNow()" />
     }
     else if (_monitor is { Cluster: { } cluster } clusterMonitor && View == DashboardView.Cluster)
     {
@@ -126,9 +124,11 @@
                     {
                         <span class="chip">@tier</span>
                     }
-                    <EnvironmentLinks Links="environment.Info.Links" Environment="@environment.Name" />
-                    @* What is being deployed to the environment, first: there only with the deployments file, and while it names one. *@
-                    <DeploymentMarks Marks="deploying" Label="@($"Deployments to {environment.Name}")" Generated="monitor.Deployments?.Generated" Zone="Zone" />
+                    <EnvironmentLinks Links="environment.Info.Links" Pages="environment.Info.Pages" Environment="@environment.Name" />
+                    @* What is being deployed to the environment, first, then a deployment freeze and the last deployment that
+                       ended: there only with the deployments file, and while it names any. *@
+                    <DeploymentMarks Marks="deploying" Activity="monitor.EnvironmentActivity(environment.Name, deploying, Time.GetUtcNow(), Zone)"
+                                     Label="@($"Deployments to {environment.Name}")" Generated="monitor.Deployments?.Generated" Zone="Zone" />
                     @if (monitor.Cost is { } environmentCost && environmentCost.Find(environment.Name) is { } spent)
                     {
                         <CostLine Report="environmentCost" Amounts="spent.Amounts" Services="spent.TopServices" Estimate="spent.Estimate" Now="Time.GetUtcNow()" />
@@ -365,6 +365,15 @@
 
     private Task OnRuntimeEnvironmentChangedAsync(string environment) =>
         ShowAsync(new ViewAddress(DashboardView.Runtime, environment));
+
+    /// <summary>A container app the runtime view shows for the first time is asked at once, unless the checks are paused or hidden.</summary>
+    private void OnRuntimeProbesDue()
+    {
+        if (_poller.IsActive)
+        {
+            _poller.CheckNow();
+        }
+    }
 
     private Task CheckAsync(CancellationToken cancellationToken) =>
         _monitor?.CheckAllAsync(_probe, cancellationToken) ?? Task.CompletedTask;

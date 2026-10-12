@@ -57,6 +57,57 @@ public sealed class NodeProber(HttpClient http, TimeProvider time)
     private static ProbeResult Unreachable(DateTimeOffset checkedAt, string detail) =>
         new(HealthState.Unreachable, StatusCode: null, LatencyMs: null, checkedAt, Detail: detail);
 
+    /// <summary>
+    /// Asks a container app (<see cref="ContainerAppProbe"/>): its health path with the probe Health check, its root
+    /// otherwise. An answer the browser may not read (the app does not allow this page's origin) is asked again
+    /// without reading it, so an app that answers is told from one that does not; with
+    /// <paramref name="corsRefused"/> it is asked that way at once, one request per probe. Never throws for a failing
+    /// app: no answer is an answer without a status. Only the caller's cancellation throws.
+    /// </summary>
+    public async Task<ContainerAppAnswer> ProbeContainerAppAsync(ContainerAppTarget target, ProbeKind probe, bool corsRefused, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        var path = target.PathFor(probe);
+        var readsHealth = target.ReadsHealth(probe);
+        var address = ProbeUrl.Combine(target.Url, path);
+        var checkedAt = time.GetUtcNow();
+        using var timeout = new CancellationTokenSource(Timeout, time);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        var started = time.GetTimestamp();
+        try
+        {
+            if (!corsRefused)
+            {
+                try
+                {
+                    using var request = NewRequest(address);
+                    using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token);
+                    return new ContainerAppAnswer(path, readsHealth, (int)response.StatusCode, false, Elapsed(started), checkedAt);
+                }
+                catch (HttpRequestException)
+                {
+                    // Not readable: refused by CORS, or no answer at all. Asked without reading, the browser tells which.
+                    started = time.GetTimestamp();
+                }
+            }
+
+            using var unread = NewRequest(address);
+            unread.SetBrowserRequestMode(BrowserRequestMode.NoCors);
+            using var answer = await http.SendAsync(unread, HttpCompletionOption.ResponseHeadersRead, linked.Token);
+            return new ContainerAppAnswer(path, readsHealth, null, true, Elapsed(started), checkedAt);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new ContainerAppAnswer(path, readsHealth, null, false, null, checkedAt, $"No answer within {Timeout.TotalSeconds:0} s.");
+        }
+        catch (HttpRequestException)
+        {
+            return new ContainerAppAnswer(path, readsHealth, null, false, null, checkedAt, "The browser got no answer: the network failed, or nothing answers at the address.");
+        }
+    }
+
+    private int Elapsed(long started) => (int)Math.Round(time.GetElapsedTime(started).TotalMilliseconds);
+
     /// <summary>The version is a courtesy: when it cannot be read, the node has no version, not a failure.</summary>
     private async Task<string?> ReadVersionAsync(Uri address, CancellationToken cancellationToken)
     {
@@ -161,6 +212,10 @@ public sealed class NodeProber(HttpClient http, TimeProvider time)
     /// <summary>The system's deployments in flight (<see cref="DeploymentsReport"/>), from the address the topology gives.</summary>
     public Task<DeploymentsReport?> ReadDeploymentsAsync(Uri address, CancellationToken cancellationToken) =>
         ReadAsync(address, DeploymentsReport.Parse, cancellationToken);
+
+    /// <summary>What Resource Health said of the system's resources (<see cref="ResourceHealthReport"/>), from <c>containers.json</c>.</summary>
+    public Task<ResourceHealthReport?> ReadResourceHealthAsync(Uri address, CancellationToken cancellationToken) =>
+        ReadAsync(address, ResourceHealthReport.Parse, cancellationToken);
 
     /// <summary>An optional JSON answer, read with the node's timeout: null whenever it cannot be read.</summary>
     private async Task<T?> ReadAsync<T>(Uri address, Func<string?, T?> parse, CancellationToken cancellationToken)

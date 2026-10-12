@@ -10,9 +10,8 @@
         <section class="environment environment--self" aria-labelledby="@($"{IdPrefix}-title")">
             <header class="environment__header">
                 <h2 id="@($"{IdPrefix}-title")">@dashboard.Name</h2>
-                <span class="chip">@BuildText.ThisPage</span>
+                <span class="chip" title="@BuildText.DashboardHelp">@BuildText.ThisPage</span>
             </header>
-            <p class="help">@BuildText.DashboardHelp</p>
             <div class="facts-row">
                 <CodeCard Build="build" Context="@context" IdPrefix="@IdPrefix" Zone="Zone" Now="Now" />
             </div>

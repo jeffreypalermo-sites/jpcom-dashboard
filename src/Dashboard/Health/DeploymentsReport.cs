@@ -14,6 +14,30 @@ namespace Dashboard.Health;
 public sealed record DeploymentsReport(DateTimeOffset? Generated, IReadOnlyList<Deployment> Deployments)
 {
     /// <summary>
+    /// The last deployment that ended of each project in each environment (<c>recent</c>), the last one first; empty
+    /// for a file from before the field.
+    /// </summary>
+    public IReadOnlyList<RecentDeployment> Recent { get; init; } = [];
+
+    /// <summary>
+    /// The deployment freezes that cover the system now or soon (<c>freezes</c>); empty for a file from before the
+    /// field, and when the system could not read them (<see cref="Missing"/> then names <c>freezes</c>).
+    /// </summary>
+    public IReadOnlyList<DeploymentFreeze> Freezes { get; init; } = [];
+
+    private static readonly string[] ActivityLists = ["recent", "freezes", "missing"];
+
+    /// <summary>The parts the system could not read from Octopus Deploy (<c>missing</c>), in the file's words.</summary>
+    public IReadOnlyList<string> Missing { get; init; } = [];
+
+    /// <summary>
+    /// True for a file that has one of the lists <c>recent</c>, <c>freezes</c> or <c>missing</c>: the system writes
+    /// what the page says in words. A file from before them says none of it, and the page then draws what it drew
+    /// before: the marks, and no activity line.
+    /// </summary>
+    public bool SaysActivity { get; init; }
+
+    /// <summary>
     /// How long a deployment that ended stays marked: one of a few minutes can end before the page saw it start.
     /// </summary>
     public static readonly TimeSpan EndedFor = TimeSpan.FromMinutes(10);
@@ -58,6 +82,12 @@ public sealed record DeploymentsReport(DateTimeOffset? Generated, IReadOnlyList<
             var root = document.RootElement;
             return root.ValueKind == JsonValueKind.Object && root.TryGetProperty("deployments", out var list) && list.ValueKind == JsonValueKind.Array
                 ? new DeploymentsReport(JsonRead.Time(root, "generated"), [.. JsonRead.Items(root, "deployments").Select(Deployment.Read).OfType<Deployment>()])
+                {
+                    Recent = [.. JsonRead.Items(root, "recent").Select(RecentDeployment.Read).OfType<RecentDeployment>().OrderByDescending(recent => recent.Finished)],
+                    Freezes = [.. JsonRead.Items(root, "freezes").Select(DeploymentFreeze.Read).OfType<DeploymentFreeze>()],
+                    Missing = [.. JsonRead.Items(root, "missing").Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString()!)],
+                    SaysActivity = ActivityLists.Any(name => root.TryGetProperty(name, out var part) && part.ValueKind == JsonValueKind.Array),
+                }
                 : null;
         }
         catch (JsonException)
@@ -109,6 +139,8 @@ public enum DeploymentState
 /// <param name="Since">When it started, or when it was queued while it has not started; null when the file's time does not parse.</param>
 /// <param name="Finished">When it ended; null while it has not, and when the file's time does not parse.</param>
 /// <param name="Url">The task in Octopus Deploy; null when the file gives no address.</param>
+/// <param name="StartedBy">Who started it, as Octopus Deploy names the account; null when the file does not say.</param>
+/// <param name="WaitsFor">What it waits for while it is waiting; null otherwise, and for a file from before the field.</param>
 public sealed record Deployment(
     string Project,
     string Environment,
@@ -117,7 +149,9 @@ public sealed record Deployment(
     string StateText,
     DateTimeOffset? Since,
     DateTimeOffset? Finished,
-    Uri? Url)
+    Uri? Url,
+    string? StartedBy = null,
+    DeploymentWait? WaitsFor = null)
 {
     /// <summary>
     /// True while it has not ended: queued, executing or waiting. A state the page does not know counts while the
@@ -148,8 +182,13 @@ public sealed record Deployment(
                 state,
                 JsonRead.Time(element, "since"),
                 JsonRead.Time(element, "finished"),
-                JsonRead.Address(element, "url"))
+                JsonRead.Address(element, "url"),
+                JsonRead.Text(element, "startedBy"),
+                StateOf(state) == DeploymentState.Waiting ? DeploymentWait.Read(JsonRead.Section(element, "waitsFor")) : null)
             : null;
+
+    /// <summary>The state a word of the file means; <see cref="DeploymentState.Unknown"/> for one the page does not know.</summary>
+    internal static DeploymentState Of(string state) => StateOf(state);
 
     private static DeploymentState StateOf(string state) => state.ToLowerInvariant() switch
     {
@@ -180,6 +219,10 @@ public sealed record Deployment(
 /// <param name="Url">The task in Octopus Deploy; null when the file gives no address.</param>
 /// <param name="InFlight">True while it has not ended.</param>
 /// <param name="OfSystem">True for the system's own release: its infrastructure and configuration.</param>
+/// <param name="Detail">
+/// What the file says beyond the state, after the sentence: who is responsible for what it waits for and since when,
+/// and who started it. Null where the file says none of it (a file from before the fields).
+/// </param>
 public sealed record DeploymentMark(
     string Project,
     string? Deployable,
@@ -190,7 +233,8 @@ public sealed record DeploymentMark(
     int? Minutes,
     Uri? Url,
     bool InFlight,
-    bool OfSystem)
+    bool OfSystem,
+    string? Detail = null)
 {
     internal static DeploymentMark Of(Deployment deployment, string slug, IReadOnlyList<string> deployables, DateTimeOffset now)
     {
@@ -206,7 +250,8 @@ public sealed record DeploymentMark(
             (deployment.InFlight ? deployment.Since : deployment.Finished) is { } then ? (int)Math.Max(0, (now - then).TotalMinutes) : null,
             deployment.Url,
             deployment.InFlight,
-            system);
+            system,
+            DeploymentText.Detail(deployment, now));
     }
 
     /// <summary>
@@ -248,6 +293,7 @@ public static class DeploymentText
         {
             DeploymentState.Queued => $"{what} is queued for {where}",
             DeploymentState.Executing => $"deploying {what} to {where}",
+            DeploymentState.Waiting when deployment.WaitsFor is { IsGuidedFailure: true } => $"{what} asks what to do after a failed step in {where}",
             DeploymentState.Waiting => $"{what} waits for a sign-off in {where}",
             DeploymentState.Succeeded => $"{what} reached {where}{ago}",
             DeploymentState.Failed => $"{what} failed in {where}{ago}",
@@ -266,12 +312,55 @@ public static class DeploymentText
 
     /// <summary>
     /// The sentence, and for a deployment in flight for how long it has been so (<c>deploying cmdemo2-ui 2.4.43 to
-    /// uat (3 min so far)</c>): a mark's tooltip.
+    /// uat (3 min so far)</c>): a mark's tooltip. Where the file says more (<see cref="DeploymentMark.Detail"/>), that
+    /// follows on a line of its own.
     /// </summary>
     public static string Title(DeploymentMark mark)
     {
         ArgumentNullException.ThrowIfNull(mark);
-        return mark is { InFlight: true, Minutes: { } minutes } ? $"{mark.Sentence} ({Age(TimeSpan.FromMinutes(minutes))} so far)" : mark.Sentence;
+        var sentence = mark is { InFlight: true, Minutes: { } minutes } ? $"{mark.Sentence} ({Age(TimeSpan.FromMinutes(minutes))} so far)" : mark.Sentence;
+        return mark.Detail is { } detail ? $"{sentence}\n{detail}" : sentence;
+    }
+
+    /// <summary>
+    /// What the file says about a deployment beyond its state: <c>the sign-off is with cmdemo2 approvers; asked 2 h
+    /// ago; started by jeffrey</c>. A title Octopus Deploy gives the question is quoted when it says more than the
+    /// kind does. Null when the file says none of it.
+    /// </summary>
+    public static string? Detail(Deployment deployment, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(deployment);
+        var parts = new List<string>();
+        if (deployment is { State: DeploymentState.Waiting, WaitsFor: { } wait })
+        {
+            if (wait.Responsible is { } responsible)
+            {
+                parts.Add($"{Question(wait)} is with {responsible}");
+            }
+            else if (wait.Title is not null && !wait.TitleIsTheKind)
+            {
+                parts.Add(Question(wait));
+            }
+
+            if (wait.Since is { } asked)
+            {
+                parts.Add($"asked {Age(now - asked)} ago");
+            }
+        }
+
+        if (deployment.StartedBy is { } startedBy)
+        {
+            parts.Add($"started by {startedBy}");
+        }
+
+        return parts.Count == 0 ? null : string.Join("; ", parts);
+    }
+
+    /// <summary><c>the sign-off</c>, <c>the question after a failed step</c>, each with Octopus Deploy's title of it where that says more.</summary>
+    private static string Question(DeploymentWait wait)
+    {
+        var kind = wait.IsGuidedFailure ? "the question after a failed step" : wait.IsSignOff ? "the sign-off" : wait.Kind;
+        return wait.Title is { } title && !wait.TitleIsTheKind ? $"{kind} \"{title}\"" : kind;
     }
 
     /// <summary>

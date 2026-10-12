@@ -113,6 +113,77 @@ public class AvailabilityTests
         Assert.Equal(expected, AvailabilityText.Percent(new HealthWindow(reports, healthy)));
     }
 
+    private static readonly DateTimeOffset Reported = new(2026, 10, 7, 1, 2, 13, TimeSpan.Zero);
+
+    private static IReadOnlyList<ContainerAppReports>? ContainerApps(string containerApps) =>
+        DeliveryReport.Parse($$"""
+            { "environments": [ { "name": "tdd", "deployables": [],
+                "health": { "last24Hours": { "reports": 24, "healthy": 23 }, "last7Days": { "reports": 168, "healthy": 166 }, "lastFailure": null,
+                            "containerApps": {{containerApps}} } } ] }
+            """)!.ContainerAppsOf("TDD");
+
+    [Fact]
+    public void WhatTheReportsFoundForEachContainerAppIsRead()
+    {
+        var apps = ContainerApps("""
+            [ { "name": "ui", "last": { "result": "healthy", "at": "2026-10-07T01:02:13Z" }, "last24Hours": { "reports": 24, "healthy": 24 }, "last7Days": { "reports": 168, "healthy": 167 } },
+              { "name": "scorecard", "last": { "result": "Unreachable", "at": "2026-10-07T01:02:13Z" }, "last24Hours": null, "last7Days": { "reports": 70, "healthy": 69 } },
+              { "name": "worker", "last": null, "last24Hours": { "reports": 0, "healthy": 0 }, "last7Days": { "reports": 0, "healthy": 0 } },
+              { "last": { "result": "healthy", "at": "2026-10-07T01:02:13Z" } },
+              "ui" ]
+            """);
+
+        Assert.Equal(
+            [
+                new ContainerAppReports("ui", new HourlyCheck(HourlyCheck.Healthy, Reported), new HealthWindow(24, 24), new HealthWindow(168, 167)),
+                new ContainerAppReports("scorecard", new HourlyCheck(HourlyCheck.Unreachable, Reported), null, new HealthWindow(70, 69)),
+                new ContainerAppReports("worker", null, new HealthWindow(0, 0), new HealthWindow(0, 0)),
+            ],
+            apps!);
+    }
+
+    [Theory]
+    [InlineData("""{ "result": "sleeping", "at": "2026-10-07T01:02:13Z" }""")]
+    [InlineData("""{ "result": "healthy" }""")]
+    [InlineData("""{ "result": "healthy", "at": "an hour ago" }""")]
+    [InlineData("""{ "at": "2026-10-07T01:02:13Z" }""")]
+    [InlineData("\"healthy\"")]
+    public void AResultIsOneOfThreeWordsWithItsTimeOrNone(string last) =>
+        Assert.Null(Assert.Single(ContainerApps($$"""[ { "name": "ui", "last": {{last}} } ]""")!).Last);
+
+    [Theory]
+    [InlineData("""{ "reports": 24, "healthy": 25 }""")]
+    [InlineData("""{ "reports": 24 }""")]
+    [InlineData("null")]
+    public void ACountThatIsNotThereOrCannotBeIsNone(string window) =>
+        Assert.Null(Assert.Single(ContainerApps($$"""[ { "name": "ui", "last24Hours": {{window}} } ]""")!).Last24Hours);
+
+    [Fact]
+    public void AnEnvironmentWithoutThemHasNoneAndAnEmptyListIsNoContainerApp()
+    {
+        Assert.Null(Report.ContainerAppsOf("prod"));
+        Assert.Null(Report.ContainerAppsOf("uat"));
+        Assert.Null(Report.ContainerAppsOf("staging"));
+        Assert.Null(ContainerApps("null"));
+        Assert.Null(ContainerApps("""{ "ui": "healthy" }"""));
+        Assert.Empty(ContainerApps("[]")!);
+    }
+
+    [Fact]
+    public void TheBoxSaysTheResultOfTheLastTwoHoursAndTheCountsInWords()
+    {
+        var ui = new ContainerAppReports("ui", new HourlyCheck(HourlyCheck.Unhealthy, Reported), new HealthWindow(24, 23), new HealthWindow(0, 0));
+
+        Assert.Equal(TimeSpan.FromHours(2), HourlyCheckText.Recent);
+        Assert.Equal("hourly: unhealthy, 27 min ago", HourlyCheckText.Result(ui, Now));
+        Assert.Equal("hourly: unhealthy, 2 h ago", HourlyCheckText.Result(ui, Reported.AddHours(2)));
+        Assert.Equal(HourlyCheckText.NoRecentCheck, HourlyCheckText.Result(ui, Reported.AddHours(2).AddSeconds(1)));
+        Assert.Equal("no recent hourly check", HourlyCheckText.Result(null, Now));
+        Assert.Equal("24 h: 23 of 24 · 7 d: none", HourlyCheckText.Counts(ui));
+        Assert.Null(HourlyCheckText.Counts(ui with { Last24Hours = null, Last7Days = null }));
+        Assert.Null(HourlyCheckText.Counts(null));
+    }
+
     [Fact]
     public void TheTooltipSaysTheseAreHourlyChecksOfThePipelineAndWhenTheFactsChanged()
     {

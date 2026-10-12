@@ -192,7 +192,7 @@ public static class CostText
         ];
     }
 
-    /// <summary><c>$1.52 yesterday · $9.80 in 7 days · $11.02 this month · as of 2026-10-06</c>.</summary>
+    /// <summary><c>$1.52 yesterday · $9.80 in 7 days · $11.02 this month · as of 2026-10-06 (UTC)</c>.</summary>
     public static string Line(CostAmounts amounts, CostReport report, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(report);
@@ -200,8 +200,14 @@ public static class CostText
         return string.Join(" · ", AsOf(report.AsOf) is { } asOf ? parts.Append(asOf) : parts);
     }
 
-    /// <summary><c>as of 2026-10-06</c>: the last day the numbers include; null when the file does not say.</summary>
-    public static string? AsOf(DateOnly? asOf) => asOf is { } day ? $"as of {Date(day)}" : null;
+    /// <summary>
+    /// <c>as of 2026-10-06 (UTC)</c>: the last day the numbers include; null when the file does not say. The days of a
+    /// cost are UTC days, on a page whose times are the viewer's: the line says so where it names the day.
+    /// </summary>
+    public static string? AsOf(DateOnly? asOf) => asOf is { } day ? $"as of {Date(day)} ({DayZone})" : null;
+
+    /// <summary>The time zone of every day of a cost.</summary>
+    public const string DayZone = "UTC";
 
     public static string Date(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -245,7 +251,7 @@ public static class CostText
         ArgumentNullException.ThrowIfNull(report);
         var days = report.AsOf is { } day ? $"complete UTC days up to {Date(day)}" : "complete UTC days";
         return $"Not live: what Azure Cost Management reported for {days}, by the tag \"environment\" of the resources. "
-            + "Azure's cost arrives hours late and is amended for a day or two; a workflow of the system repository reads it hourly.";
+            + "Azure's cost arrives hours late and is amended for a day or two; a workflow of the system repository reads it hourly until the day is complete, then every six hours.";
     }
 
     /// <summary>What the entry <see cref="CostReport.SharedName"/> holds.</summary>

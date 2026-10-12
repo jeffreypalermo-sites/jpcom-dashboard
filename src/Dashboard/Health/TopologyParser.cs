@@ -138,10 +138,38 @@ public static class TopologyParser
                 versions,
                 history,
                 ReadLinks(element),
-                ReadText(element, "namespace")));
+                ReadText(element, "namespace"),
+                ReadPages(element)));
         }
 
         return environments;
+    }
+
+    /// <summary>
+    /// The optional <c>pages</c> of an environment: every entry with a name and an absolute http or https address,
+    /// in the order of the file. An entry without either is left out, like a link that is no address
+    /// (<see cref="ReadLinks"/>): a link is a courtesy, never a reason to show no dashboard. Null without a single page.
+    /// </summary>
+    private static List<PageLink>? ReadPages(JsonElement parent)
+    {
+        if (!parent.TryGetProperty("pages", out var pages) || pages.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var found = new List<PageLink>();
+        foreach (var page in pages.EnumerateArray())
+        {
+            if (page.ValueKind == JsonValueKind.Object
+                && ReadText(page, "name") is { } name
+                && page.TryGetProperty("url", out var url)
+                && ReadAddress(url) is { } address)
+            {
+                found.Add(new PageLink(name, address, ReadText(page, "deployable")));
+            }
+        }
+
+        return found.Count == 0 ? null : found;
     }
 
     /// <summary>

@@ -76,11 +76,11 @@
 
     private static readonly (string State, string Text)[] Nodes =
     [
-        ("healthy", "Healthy: HTTP 200 (the database, a dependency: a web app's health check says it is reachable)"),
-        ("unhealthy", "Unhealthy: answers, not HTTP 200 (a dependency: a web app's health check says it is degraded or unhealthy)"),
+        ("healthy", "Healthy (a container app that cannot tell its health: Responding)"),
+        ("unhealthy", "Unhealthy: answers, not HTTP 200"),
         ("unreachable", "Unreachable: no answer"),
-        ("checking", "Checking"),
-        ("neutral", "Not probed from the browser"),
+        ("checking", "Checking (a container app: Probing or Waking)"),
+        ("neutral", "Not asked by the browser: what the pipeline found"),
     ];
 
     private static readonly (string State, string Text)[] Regions =
