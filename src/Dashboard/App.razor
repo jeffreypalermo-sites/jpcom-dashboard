@@ -81,7 +81,7 @@
 </header>
 
 @* Renderings of one monitor: the checks, the interval and the probe above apply to all. The address keeps the
-   choice (#runtime, #runtime/<environment>, #cluster), so a link opens the view. The cluster view is there only for a
+   choice (#runtime, #runtime/<environment>, #runtime/<environment>/database, #runtime/<environment>/app/<deployable>, #cluster), so a link opens the view. The cluster view is there only for a
    topology with a cluster. *@
 <nav class="views" aria-label="Views">
     <button type="button" class="views__tab" aria-current="@(View == DashboardView.Health ? "page" : null)"
@@ -99,6 +99,8 @@
     @if (_monitor is { } runtimeMonitor && View == DashboardView.Runtime)
     {
         <RuntimeView Monitor="runtimeMonitor" Environment="@_address.Environment" EnvironmentChanged="OnRuntimeEnvironmentChangedAsync"
+                     Database="_address.Database" DatabaseChanged="OnRuntimeDatabaseChangedAsync" Active="_poller.IsActive"
+                     Application="@_address.Application" ApplicationChanged="OnRuntimeApplicationChangedAsync"
                      ProbesDue="OnRuntimeProbesDue" Page="PageAddress" Zone="Zone" Now="Time.GetUtcNow()" />
     }
     else if (_monitor is { Cluster: { } cluster } clusterMonitor && View == DashboardView.Cluster)
@@ -353,18 +355,35 @@
         }
     }
 
-    /// <summary>Shows a view and puts it into the address, without a history entry per click.</summary>
-    private async Task ShowAsync(ViewAddress address)
+    /// <summary>
+    /// Shows a view and puts it into the address, without a history entry per click; with one (<paramref name="step"/>)
+    /// where the browser's Back should lead back.
+    /// </summary>
+    private async Task ShowAsync(ViewAddress address, bool step = false)
     {
         Apply(address);
         if (_location is { } location)
         {
-            await location.InvokeVoidAsync("setHash", address.ToHash());
+            await location.InvokeVoidAsync("setHash", address.ToHash(), step);
         }
     }
 
     private Task OnRuntimeEnvironmentChangedAsync(string environment) =>
         ShowAsync(new ViewAddress(DashboardView.Runtime, environment));
+
+    /// <summary>
+    /// The runtime view zooms into the environment's database, or back out: a step of the history. An address that
+    /// names a database view the deployment has no files of is corrected in place.
+    /// </summary>
+    private Task OnRuntimeDatabaseChangedAsync(RuntimeDatabaseChange change) =>
+        ShowAsync(new ViewAddress(DashboardView.Runtime, change.Environment, change.Shown), change.Step);
+
+    /// <summary>
+    /// The runtime view zooms into the box of a deployable, or back out: a step of the history. An address that names
+    /// an application view the diagram has no box for is corrected in place.
+    /// </summary>
+    private Task OnRuntimeApplicationChangedAsync(RuntimeApplicationChange change) =>
+        ShowAsync(new ViewAddress(DashboardView.Runtime, change.Environment, Application: change.Deployable), change.Step);
 
     /// <summary>A container app the runtime view shows for the first time is asked at once, unless the checks are paused or hidden.</summary>
     private void OnRuntimeProbesDue()

@@ -30,6 +30,12 @@ public sealed record RuntimeDiagram(string Environment, RuntimeManifest? Manifes
     public bool IsValid => Manifest is not null && Svg is not null;
 }
 
+/// <summary>One environment's database view: its manifest and the SVG as text, or the reasons there is none.</summary>
+public sealed record DatabaseDiagram(DatabaseManifest? Manifest, string? Svg, IReadOnlyList<string> Errors)
+{
+    public bool IsValid => Manifest is not null && Svg is not null;
+}
+
 /// <summary>Loads the files of <c>runtime/</c> from the dashboard's own address, as it loads <c>topology.json</c>.</summary>
 public sealed class RuntimeLoader(HttpClient http)
 {
@@ -88,6 +94,97 @@ public sealed class RuntimeLoader(HttpClient http)
         }
 
         return errors.Count > 0 ? new RuntimeDiagram(entry.Name, null, null, errors) : new RuntimeDiagram(entry.Name, manifest, svg, []);
+    }
+
+    public async Task<DatabaseDiagram> LoadDatabaseAsync(RuntimeDatabaseFiles files, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        var manifestTask = GetAsync(files.Manifest, cancellationToken);
+        var svgTask = GetAsync(files.Svg, cancellationToken);
+        var (_, manifestText, manifestError) = await manifestTask;
+        var (_, svg, svgError) = await svgTask;
+
+        var errors = new List<string>();
+        DatabaseManifest? manifest = null;
+        if (manifestError is not null)
+        {
+            errors.Add(manifestError);
+        }
+        else
+        {
+            var parsed = DatabaseParser.ParseManifest(manifestText);
+            manifest = parsed.Value;
+            errors.AddRange(parsed.Errors.Select(problem => $"{Folder}{files.Manifest}: {problem}"));
+        }
+
+        if (svgError is not null)
+        {
+            errors.Add(svgError);
+        }
+        else if (svg is null || !svg.Contains("<svg", StringComparison.Ordinal))
+        {
+            errors.Add($"{Folder}{files.Svg}: not an SVG.");
+        }
+
+        return errors.Count > 0 ? new DatabaseDiagram(null, null, errors) : new DatabaseDiagram(manifest, svg, []);
+    }
+
+    /// <summary>
+    /// The live file of a database view, from another origin. It may be absent, refused or late: then there is none,
+    /// and the view keeps what it shows. Only the caller's cancellation throws.
+    /// </summary>
+    public async Task<DatabaseLive?> ReadLiveDatabaseAsync(Uri source, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        using var timeout = new CancellationTokenSource(NodeProber.DefaultTimeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        try
+        {
+            using var request = NodeProber.NewRequest(source);
+            using var response = await http.SendAsync(request, linked.Token);
+            return response.IsSuccessStatusCode ? DatabaseParser.ParseLive(await response.Content.ReadAsStringAsync(linked.Token)) : null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The assemblies of one version of a deployable, from its repository (another origin). HTTP 404 says that the
+    /// repository published none of that version; anything else that is no JSON object could not be read. Only the
+    /// caller's cancellation throws.
+    /// </summary>
+    public async Task<ApplicationRead> ReadArchitectureAsync(Uri address, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        using var timeout = new CancellationTokenSource(NodeProber.DefaultTimeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        try
+        {
+            using var request = NodeProber.NewRequest(address);
+            using var response = await http.SendAsync(request, linked.Token);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return ApplicationRead.Missing;
+            }
+
+            return response.IsSuccessStatusCode && ApplicationParser.Parse(await response.Content.ReadAsStringAsync(linked.Token)) is { } architecture
+                ? new ApplicationRead(ApplicationReadState.Read, architecture)
+                : ApplicationRead.Failed;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return ApplicationRead.Failed;
+        }
+        catch (HttpRequestException)
+        {
+            return ApplicationRead.Failed;
+        }
     }
 
     /// <summary>The status and the text of a file of <c>runtime/</c>; an error text when it could not be read.</summary>

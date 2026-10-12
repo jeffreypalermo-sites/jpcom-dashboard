@@ -11,11 +11,13 @@ public sealed record RuntimeParseResult<T>(T? Value, IReadOnlyList<string> Error
 
 /// <summary>
 /// Reads <c>runtime/index.json</c> and <c>runtime/&lt;env&gt;.json</c>. The deployment writes both next to the SVG it
-/// rendered (<c>deploy-staticwebapp.ps1</c>). Required: the index's environments with their name, manifest and SVG;
+/// rendered (<c>deploy-staticwebapp.ps1</c>). Required: the index's environments with their name, manifest and SVG
+/// (an entry's <c>database</c> is optional: kept when it names two files of <c>runtime/</c>, else left out);
 /// the manifest's nodes with alias and kind, the regions with alias, the relationships with id. Unknown fields and
 /// kinds are kept apart, not refused: a newer diagram still shows. Optional: the frames (with alias), and the
 /// <c>links</c> of a node, a region or a frame, of which only absolute https addresses are kept; a node's
-/// <c>healthPath</c> (a plain path, else left out) and its <c>ids</c> (the strings of the list).
+/// <c>healthPath</c> (a plain path, else left out), its <c>ids</c> (the strings of the list) and, of a web app or a
+/// container app, its <c>architecture</c> (an absolute https address, else left out).
 /// </summary>
 public static class RuntimeManifestParser
 {
@@ -55,7 +57,7 @@ public static class RuntimeManifestParser
 
                 var manifest = RelativeFile(element, "manifest", $"{name}.json", path, errors);
                 var svg = RelativeFile(element, "svg", $"{name}.svg", path, errors);
-                entries.Add(new RuntimeIndexEntry(name, manifest, svg));
+                entries.Add(new RuntimeIndexEntry(name, manifest, svg, Database(element)));
             }
 
             return errors.Count > 0
@@ -96,9 +98,10 @@ public static class RuntimeManifestParser
                     errors.Add($"{path}.url: not an absolute http or https address.");
                 }
 
+                var kind = NodeKind(Text(element, "kind"));
                 return new RuntimeNode(
                     alias,
-                    NodeKind(Text(element, "kind")),
+                    kind,
                     Text(element, "name") ?? alias,
                     url,
                     Text(element, "deployable"),
@@ -109,7 +112,8 @@ public static class RuntimeManifestParser
                     Text(element, "dependencyKind"),
                     Links(element),
                     HealthPath(element),
-                    Ids(element));
+                    Ids(element),
+                    Architecture(element, kind));
             });
             var regions = ReadArray(root, "regions", errors, (element, path) =>
             {
@@ -228,13 +232,27 @@ public static class RuntimeManifestParser
     private static string RelativeFile(JsonElement element, string property, string fallback, string path, List<string> errors)
     {
         var file = Text(element, property) ?? fallback;
-        if (file.Contains('/', StringComparison.Ordinal) || file.Contains('\\', StringComparison.Ordinal) || file.Contains(':', StringComparison.Ordinal) || file.StartsWith('.'))
+        if (!IsFileName(file))
         {
             errors.Add($"{path}.{property}: not a file name in runtime/.");
         }
 
         return file;
     }
+
+    /// <summary>
+    /// The files of an environment's database view: both plain names in <c>runtime/</c>. Anything else is left out,
+    /// never an error: the runtime diagram shows all the same, and the database's box behaves as without the files.
+    /// </summary>
+    private static RuntimeDatabaseFiles? Database(JsonElement entry) =>
+        entry.TryGetProperty("database", out var database) && database.ValueKind == JsonValueKind.Object
+            && Text(database, "svg") is { } svg && IsFileName(svg)
+            && Text(database, "manifest") is { } manifest && IsFileName(manifest)
+            ? new RuntimeDatabaseFiles(svg, manifest)
+            : null;
+
+    private static bool IsFileName(string file) =>
+        !(file.Contains('/', StringComparison.Ordinal) || file.Contains('\\', StringComparison.Ordinal) || file.Contains(':', StringComparison.Ordinal) || file.StartsWith('.'));
 
     private static string? Text(JsonElement parent, string property)
     {
@@ -291,6 +309,20 @@ public static class RuntimeManifestParser
         Text(parent, "healthPath") is { Length: <= LongestPath } path && path[0] == '/' && !path.StartsWith("//", StringComparison.Ordinal)
             && path.All(character => char.IsAsciiLetterOrDigit(character) || "/._~-".Contains(character, StringComparison.Ordinal))
             ? path
+            : null;
+
+    /// <summary>
+    /// Where the diagrams of a node's deployable are published: an absolute https address without a query, of a web
+    /// app or a container app. The page builds the addresses it asks from it. Anything else is left out, never an
+    /// error: the box then behaves as without one.
+    /// </summary>
+    private static Uri? Architecture(JsonElement parent, RuntimeNodeKind kind) =>
+        kind is RuntimeNodeKind.WebApp or RuntimeNodeKind.ContainerApp
+        && Text(parent, "architecture") is { Length: <= LongestPath * 2 } text
+        && Uri.TryCreate(text, UriKind.Absolute, out var address)
+        && address.Scheme == Uri.UriSchemeHttps
+        && address.Query.Length == 0 && address.Fragment.Length == 0 && address.UserInfo.Length == 0
+            ? address
             : null;
 
     /// <summary>A node's resource ids: the strings of its list that are not empty; null without one.</summary>

@@ -1,0 +1,290 @@
+@implements IAsyncDisposable
+@inject RuntimeLoader Loader
+@inject IJSRuntime JS
+
+@* The database view: the tables of one environment's database, drawn by PlantUML when the dashboard was deployed, in
+   the place of the runtime diagram whose database box the reader zoomed into. The row counts are replaced by the live
+   file's where the manifest names one and it answers (js/database.js writes; DatabaseText decides what). Every word
+   of the manifest and of the live file is rendered as text. *@
+<section class="database @(Entering ? "database--entering" : null)" aria-labelledby="database-title" @ref="_section" @onkeydown="OnKeyDownAsync">
+    <header class="database__header">
+        <button type="button" class="button" title="Back to the runtime diagram of @Environment (also Escape, and the browser's Back)"
+                @ref="_back" @onclick="LeaveAsync">Back to the runtime diagram</button>
+        <h3 id="database-title">Database @(_diagram?.Manifest?.Database) <span class="chip">@Environment</span></h3>
+    </header>
+
+    @if (_diagram is null)
+    {
+        <p class="empty" role="status">Loading the tables of @Environment</p>
+    }
+    else if (_diagram is { IsValid: false } broken)
+    {
+        <section class="problem" role="alert">
+            <h4>The database view of @Environment could not be read</h4>
+            <ul>
+                @foreach (var error in broken.Errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </section>
+    }
+    else if (_diagram.Manifest is { } read)
+    {
+        if (DatabaseText.ReadLine(read, _live, Now) is { } line)
+        {
+            <p class="database__note" title="@ReadTitle(read)">@line</p>
+        }
+
+        if (DatabaseText.TruncatedLine(read) is { } first)
+        {
+            <p class="database__note">@first</p>
+        }
+
+        if (DatabaseText.HasSchemaChanged(read, _live))
+        {
+            <p class="database__changed" role="status">@DatabaseText.SchemaChanged</p>
+        }
+    }
+
+    @if (_mountProblem is { } problem)
+    {
+        <p class="problem" role="alert">@problem</p>
+    }
+
+    @* js/database.js owns the content of this element: Blazor renders it empty and never touches its children. *@
+    <div class="database__canvas" tabindex="0" role="region"
+         aria-label="@($"Tables of the database of {Environment}; scrolls in both directions")" hidden="@(_diagram is not { IsValid: true })">
+        <div class="database__svg" @ref="_host"></div>
+    </div>
+
+    @if (_diagram is { IsValid: true, Manifest: { } manifest })
+    {
+        <details class="database__list">
+            <summary>Tables as a list</summary>
+            <div class="table-scroll">
+                <table class="grid">
+                    <caption class="visually-hidden">Tables of @manifest.Database</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Table</th>
+                            <th scope="col" class="grid__number">Columns</th>
+                            <th scope="col" class="grid__number">Rows</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in DatabaseText.List(manifest, _live))
+                        {
+                            <tr>
+                                <th scope="row" class="grid__name">@row.Name</th>
+                                <td class="grid__number">@DatabaseText.Number(row.Columns)</td>
+                                <td class="grid__number">@DatabaseText.Number(row.Rows)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_live is { } live && live.Tables.Any(table => table.Columns.Count > 0))
+            {
+                <div class="table-scroll">
+                    <table class="grid">
+                        <caption class="visually-hidden">Columns of the tables of @manifest.Database</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Table</th>
+                                <th scope="col">Column</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Nullable</th>
+                                <th scope="col">Key</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var table in live.Tables)
+                            {
+                                foreach (var column in table.Columns)
+                                {
+                                    <tr>
+                                        <th scope="row" class="grid__name">@DatabaseText.QualifiedTable(table.Schema, table.Name)</th>
+                                        <td class="grid__name">@column.Name</td>
+                                        <td class="grid__name">@column.Type</td>
+                                        <td>@DatabaseText.Nullable(column.Nullable)</td>
+                                        <td>@DatabaseText.Key(column.Key)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </details>
+    }
+</section>
+
+@code {
+    private readonly CancellationTokenSource _stopping = new();
+    private DatabaseDiagram? _diagram;
+    private DatabaseLive? _live;
+    private DateTimeOffset? _lastRead;
+    private bool _reading;
+    private IJSObjectReference? _module;
+    private ElementReference _section;
+    private ElementReference _back;
+    private ElementReference _host;
+    private bool _mounted;
+    private string? _mountProblem;
+    private string? _drawn;
+    private bool _leaving;
+
+    /// <summary>The view's two files in <c>runtime/</c>, from the index.</summary>
+    [Parameter, EditorRequired]
+    public RuntimeDatabaseFiles Files { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Environment { get; set; } = default!;
+
+    /// <summary>The page checks: it is neither paused nor hidden. Only then is the live file read again.</summary>
+    [Parameter]
+    public bool Active { get; set; }
+
+    /// <summary>The reader zoomed in from the runtime diagram: the view plays its entrance and takes the focus.</summary>
+    [Parameter]
+    public bool Entering { get; set; }
+
+    /// <summary>Raised by "Back to the runtime diagram", once the view has played its exit.</summary>
+    [Parameter]
+    public EventCallback Back { get; set; }
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = default!;
+
+    /// <summary>The moment of this rendering: "2 h ago" is counted from it, and so is the minute between two reads of the live file.</summary>
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stopping.CancelAsync();
+        if (_module is { } module)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The page is going away.
+            }
+        }
+
+        _stopping.Dispose();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _diagram = await Loader.LoadDatabaseAsync(Files, _stopping.Token);
+    }
+
+    /// <summary>
+    /// Every round of the page's checks renders the view again: that is when the live file is read, by the rule of
+    /// <see cref="DatabaseRefresh"/>. A read that fails keeps what the view shows.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_reading || _diagram?.Manifest?.Source is not { } source || !DatabaseRefresh.IsDue(Active, _lastRead, Now))
+        {
+            return;
+        }
+
+        _reading = true;
+        _lastRead = Now;
+        try
+        {
+            if (await Loader.ReadLiveDatabaseAsync(source, _stopping.Token) is { } live)
+            {
+                _live = live;
+            }
+        }
+        finally
+        {
+            _reading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Entering)
+        {
+            await _back.FocusAsync(preventScroll: true);
+        }
+
+        if (_diagram is not { IsValid: true } diagram)
+        {
+            return;
+        }
+
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/database.js");
+        if (!_mounted)
+        {
+            _mounted = true;
+            _mountProblem = await _module.InvokeAsync<string?>("mount", _host, diagram.Svg);
+            if (_mountProblem is not null)
+            {
+                StateHasChanged();
+            }
+        }
+
+        if (_mountProblem is not null)
+        {
+            return;
+        }
+
+        var counts = DatabaseText.Counts(diagram.Manifest!, _live);
+        var drawn = string.Join('\n', counts.Select(count => $"{count.QualifiedName}\t{count.Text}"));
+        if (drawn == _drawn)
+        {
+            return;
+        }
+
+        _drawn = drawn;
+        await _module.InvokeVoidAsync("counts", _host, counts.Select(count => count.QualifiedName).ToArray(), counts.Select(count => count.Text).ToArray());
+    }
+
+    /// <summary>The line's tooltip: the moments in full, and what is how old.</summary>
+    private string? ReadTitle(DatabaseManifest manifest)
+    {
+        var (at, live) = DatabaseText.ReadAt(manifest, _live);
+        if (at is not { } moment)
+        {
+            return null;
+        }
+
+        var drawn = manifest.ReadAt is { } readAt ? $" The diagram was drawn at the environment's last deployment, {TimeText.DateAndTime(readAt, Zone)}." : string.Empty;
+        return live
+            ? $"The row counts and the list are of {TimeText.DateAndTime(moment, Zone)}.{drawn}"
+            : $"The deployment read the schema {TimeText.DateAndTime(moment, Zone)}: the diagram is as old as the environment's last deployment of the dashboard.";
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs pressed)
+    {
+        if (pressed.Key == "Escape")
+        {
+            await LeaveAsync();
+        }
+    }
+
+    private async Task LeaveAsync()
+    {
+        if (_leaving)
+        {
+            return;
+        }
+
+        _leaving = true;
+        if (_module is { } module)
+        {
+            await module.InvokeVoidAsync("leave", _section);
+        }
+
+        await Back.InvokeAsync();
+    }
+}

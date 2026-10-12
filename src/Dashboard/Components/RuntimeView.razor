@@ -3,7 +3,11 @@
 @inject IJSRuntime JS
 
 @* The runtime view: the environment's C4 deployment diagram, rendered by PlantUML at deploy time, updated in place
-   from the same monitor as the health view (js/runtime.js draws; RuntimePayloadBuilder decides what). *@
+   from the same monitor as the health view (js/runtime.js draws; RuntimePayloadBuilder decides what). Where the
+   deployment recorded the schema of the environment's database, the database's box zooms into the database view,
+   which is shown here in the diagram's place (#runtime/<environment>/database). Where the manifest names the
+   architecture of a web app's or a container app's deployable, that box zooms into the application view the same way
+   (#runtime/<environment>/app/<deployable>). *@
 <section class="runtime" aria-labelledby="runtime-title">
     <header class="runtime__header">
         <h2 id="runtime-title">Runtime@(Current is { } shown ? $": {shown.Name}" : string.Empty)</h2>
@@ -27,9 +31,12 @@
                     </button>
                 }
             </div>
-            <button type="button" class="button button--quiet runtime__fit"
-                    title="@(_fit ? "The diagram is fitted to the width of the page (down to 70 % of its size). Press to show it at its actual size; it then scrolls sideways" : "The diagram is shown at its actual size. Press to fit it to the width of the page (down to 70 % of its size)")"
-                    @onclick="() => _fit = !_fit">@(_fit ? "Actual size" : "Fit to width")</button>
+            @if (!Zoomed)
+            {
+                <button type="button" class="button button--quiet runtime__fit"
+                        title="@(_fit ? "The diagram is fitted to the width of the page (down to 70 % of its size). Press to show it at its actual size; it then scrolls sideways" : "The diagram is shown at its actual size. Press to fit it to the width of the page (down to 70 % of its size)")"
+                        @onclick="() => _fit = !_fit">@(_fit ? "Actual size" : "Fit to width")</button>
+            }
             @* What is being deployed to the shown environment: the system's own release marks the environment here, a
                deployable's also the nodes of the diagram. *@
             <DeploymentMarks Marks="Deploying" Activity="@(Current is { } named ? Monitor.EnvironmentActivity(named.Name, Deploying, Now, Zone) : [])"
@@ -66,7 +73,18 @@
     }
     else
     {
-        @if (_diagram is { IsValid: false } broken)
+        @if (DatabaseEntry is { Database: { } files } zoomed)
+        {
+            <DatabaseView @key="zoomed.Name" Files="files" Environment="@zoomed.Name" Active="Active" Entering="_entering"
+                          Back="LeaveDatabaseAsync" Zone="Zone" Now="Now" />
+        }
+        else if (ApplicationBoxes is { Count: > 0 } boxes && Current is { } inside)
+        {
+            <ApplicationView @key="@($"{inside.Name}/{boxes[0].Deployable}")" Architecture="boxes[0].Architecture!" Deployable="@boxes[0].Deployable"
+                             Environment="@inside.Name" Version="ApplicationText.Version(boxes, Shown)" Entering="_entering"
+                             Back="LeaveApplicationAsync" />
+        }
+        else if (_diagram is { IsValid: false } broken)
         {
             <section class="problem" role="alert">
                 <h3>The runtime diagram of @broken.Environment could not be read</h3>
@@ -83,18 +101,20 @@
             <p class="empty" role="status">Loading the runtime diagram of @Current?.Name</p>
         }
 
-        @if (_mountProblem is { } problem)
+        @if (_mountProblem is { } problem && !Zoomed)
         {
             <p class="problem" role="alert">@problem</p>
         }
 
-        @* js/runtime.js owns the content of this element: Blazor renders it empty and never touches its children. *@
+        @* js/runtime.js owns the content of this element: Blazor renders it empty and never touches its children. It
+           stays in the page, hidden, while the database view or an application view is shown: the zoom back out
+           plays on it. *@
         <div class="runtime__canvas @(_fit ? "runtime__canvas--fit" : null)" tabindex="0" role="region"
-             aria-label="@($"Runtime diagram of {Current?.Name}; scrolls sideways at its actual size")" hidden="@(_diagram is not { IsValid: true })">
+             aria-label="@($"Runtime diagram of {Current?.Name}; scrolls sideways at its actual size")" hidden="@(Zoomed || _diagram is not { IsValid: true })">
             <div class="runtime__svg" @ref="_host"></div>
         </div>
 
-        @if (_missing.Count > 0)
+        @if (_missing.Count > 0 && !Zoomed)
         {
             <p class="runtime__missing" role="status">
                 The diagram lacks @string.Join(", ", _missing): the manifest and the SVG of this deployment do not match.
@@ -105,7 +125,7 @@
            portal, what the pipeline's hourly health reports found, what it and the resources it shares cost, the code
            its deployables run, how they were delivered), and last the code of the dashboard itself.
            Nothing where no source answered. *@
-        @if (Shown is { } facts)
+        @if (!Zoomed && Shown is { } facts)
         {
             <section class="runtime__facts" aria-label="@($"Availability, cost, code and delivery of {facts.Name}")">
                 <EnvironmentLinks Links="facts.Info.Links" Pages="facts.Info.Pages" Environment="@facts.Name" />
@@ -138,7 +158,11 @@
             </section>
         }
 
-        <RuntimeLegend Deployments="Monitor.Topology.System.DeploymentsUrl is not null" />
+        @if (!Zoomed)
+        {
+            <RuntimeLegend Deployments="Monitor.Topology.System.DeploymentsUrl is not null" />
+        }
+
         @if (loaded.PlantUml is { } version)
         {
             <p class="help">Rendered with PlantUML @version when the dashboard was deployed.</p>
@@ -158,6 +182,13 @@
     private string? _mountProblem;
     private List<string> _missing = [];
     private bool _fit = true;
+    private DotNetObjectReference<RuntimeView>? _self;
+
+    // The reader zoomed into the database view or an application view (it then plays its entrance), the diagram is
+    // still zoomed in, and the box it is zoomed into (an address opened as it is names none: the view's first box).
+    private bool _entering;
+    private bool _zoomed;
+    private string? _zoomedBox;
 
     /// <summary>The monitor of the page: the same checks the health view shows.</summary>
     [Parameter, EditorRequired]
@@ -169,6 +200,31 @@
 
     [Parameter]
     public EventCallback<string> EnvironmentChanged { get; set; }
+
+    /// <summary>
+    /// The address names the database view of <see cref="Environment"/>. It is shown only where the deployment wrote
+    /// its files for that environment; for any other address <see cref="DatabaseChanged"/> asks for the diagram.
+    /// </summary>
+    [Parameter]
+    public bool Database { get; set; }
+
+    [Parameter]
+    public EventCallback<RuntimeDatabaseChange> DatabaseChanged { get; set; }
+
+    /// <summary>
+    /// The address names the application view of this deployable in <see cref="Environment"/>. It is shown only where
+    /// the environment's diagram has a box of that deployable with an architecture; for any other address
+    /// <see cref="ApplicationChanged"/> asks for the diagram.
+    /// </summary>
+    [Parameter]
+    public string? Application { get; set; }
+
+    [Parameter]
+    public EventCallback<RuntimeApplicationChange> ApplicationChanged { get; set; }
+
+    /// <summary>The page checks: it is neither paused nor hidden. The database view reads its live file only then.</summary>
+    [Parameter]
+    public bool Active { get; set; }
 
     /// <summary>
     /// Raised when the diagram shows a container app the page never probed, or Resource Health it never read: the page
@@ -197,6 +253,24 @@
         ? entries.FirstOrDefault(entry => string.Equals(entry.Name, Environment, StringComparison.OrdinalIgnoreCase)) ?? entries[0]
         : null;
 
+    /// <summary>The environment whose database view is shown; null while the diagram is.</summary>
+    private RuntimeIndexEntry? DatabaseEntry =>
+        Database && Current is { Database: not null } entry && string.Equals(entry.Name, Environment, StringComparison.OrdinalIgnoreCase) ? entry : null;
+
+    private bool ShowsDatabase => DatabaseEntry is not null;
+
+    /// <summary>The boxes of the deployable whose application view is shown, the primary first; null while the diagram is.</summary>
+    private IReadOnlyList<RuntimeNode>? ApplicationBoxes =>
+        Application is { } deployable && !ShowsDatabase && _diagram is { IsValid: true, Manifest: { } manifest }
+        && Current is { } entry && string.Equals(entry.Name, Environment, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(entry.Name, _diagram.Environment, StringComparison.Ordinal)
+        && ApplicationText.Boxes(manifest, deployable) is { Count: > 0 } boxes
+            ? boxes
+            : null;
+
+    /// <summary>A view a box led into is shown in the diagram's place.</summary>
+    private bool Zoomed => ShowsDatabase || ApplicationBoxes is not null;
+
     /// <summary>
     /// What is being deployed to the shown environment. A mark belongs to a deployable the diagram draws a node of,
     /// also one the topology does not list; while the diagram is not loaded, to none.
@@ -204,6 +278,34 @@
     private IReadOnlyList<DeploymentMark> Deploying => _diagram is { IsValid: true, Manifest: { } manifest }
         ? Monitor.DeploymentMarks(manifest.Environment, RuntimePayloadBuilder.Deployables(manifest), Now)
         : Current is { } entry ? Monitor.DeploymentMarks(entry.Name, [], Now) : [];
+
+    /// <summary>
+    /// Called by <c>js/runtime.js</c> when the zoom into a box has played: the database's box shows the database
+    /// view, a box of a deployable with an architecture its application view.
+    /// </summary>
+    [JSInvokable]
+    public async Task OpenBox(string alias)
+    {
+        if (Current is not { } entry || _mounted is not { IsValid: true, Manifest: { } manifest }
+            || !string.Equals(entry.Name, _mounted.Environment, StringComparison.Ordinal)
+            || manifest.Nodes.FirstOrDefault(node => string.Equals(node.Alias, alias, StringComparison.Ordinal)) is not { } box)
+        {
+            return;
+        }
+
+        if (entry.Database is not null && ReferenceEquals(box, DatabaseText.Box(manifest)))
+        {
+            _entering = true;
+            _zoomedBox = box.Alias;
+            await DatabaseChanged.InvokeAsync(new RuntimeDatabaseChange(entry.Name, Shown: true, Step: true));
+        }
+        else if (ApplicationText.Boxes(manifest).Contains(box))
+        {
+            _entering = true;
+            _zoomedBox = box.Alias;
+            await ApplicationChanged.InvokeAsync(new RuntimeApplicationChange(entry.Name, box.Deployable, Step: true));
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -222,6 +324,7 @@
             }
         }
 
+        _self?.Dispose();
         _stopping.Dispose();
     }
 
@@ -235,6 +338,7 @@
         if (Current is not { } entry)
         {
             _diagram = null;
+            await CorrectAddressAsync();
             return;
         }
 
@@ -246,6 +350,7 @@
         }
 
         _diagram = diagram;
+        await CorrectAddressAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -271,11 +376,44 @@
             {
                 StateHasChanged();
             }
+            else
+            {
+                // The database's box leads into the database view where the deployment wrote that view's files; a
+                // box of a deployable into its application view where the manifest names its architecture.
+                var recorded = _index?.Index?.Environments.Any(entry => entry.Database is not null && string.Equals(entry.Name, diagram.Environment, StringComparison.Ordinal)) ?? false;
+                var boxes = ApplicationText.Boxes(diagram.Manifest!).Select(box => (box.Alias, Label: ApplicationText.BoxLabel(box))).ToList();
+                if (recorded && DatabaseText.Box(diagram.Manifest!) is { } database)
+                {
+                    boxes.Insert(0, (database.Alias, DatabaseText.BoxLabel(database)));
+                }
+
+                _self ??= DotNetObjectReference.Create(this);
+                await _module.InvokeVoidAsync("zoomable", _host, boxes.Select(box => box.Alias).ToArray(), boxes.Select(box => box.Label).ToArray(), _self);
+            }
         }
 
         if (_mountProblem is not null)
         {
             return;
+        }
+
+        // While the database view or an application view is shown the diagram is hidden and nothing is drawn into it:
+        // its words could not be measured. Shown again, it is drawn anew while the zoom plays back out of the box.
+        if (Zoomed)
+        {
+            _zoomed = true;
+            _zoomedBox ??= ApplicationBoxes is { } shownBoxes ? shownBoxes[0].Alias : DatabaseText.Box(diagram.Manifest!)?.Alias;
+            return;
+        }
+
+        if (_zoomed)
+        {
+            var box = _zoomedBox;
+            _zoomed = false;
+            _zoomedBox = null;
+            _entering = false;
+            _lastPayload = null;
+            await _module.InvokeVoidAsync("zoomOut", _host, box);
         }
 
         var environment = Shown;
@@ -305,11 +443,48 @@
         }
     }
 
+    /// <summary>An environment's button shows its diagram: also the shown environment's, while a view a box led into is shown.</summary>
     private async Task SelectAsync(string environment)
     {
-        if (!string.Equals(environment, Current?.Name, StringComparison.Ordinal))
+        if (Zoomed || !string.Equals(environment, Current?.Name, StringComparison.Ordinal))
         {
             await EnvironmentChanged.InvokeAsync(environment);
+        }
+    }
+
+    /// <summary>"Back to the runtime diagram": a step of the history, like the zoom into the database.</summary>
+    private async Task LeaveDatabaseAsync()
+    {
+        if (DatabaseEntry is { } entry)
+        {
+            await DatabaseChanged.InvokeAsync(new RuntimeDatabaseChange(entry.Name, Shown: false, Step: true));
+        }
+    }
+
+    /// <summary>"Back to the runtime diagram" of an application view: a step of the history, like the zoom into the box.</summary>
+    private async Task LeaveApplicationAsync()
+    {
+        if (ApplicationBoxes is not null && Current is { } entry)
+        {
+            await ApplicationChanged.InvokeAsync(new RuntimeApplicationChange(entry.Name, null, Step: true));
+        }
+    }
+
+    /// <summary>
+    /// An address that names a database view this deployment has no files of (an environment without a recorded
+    /// schema, an unknown environment) is set to the diagram's, without a step of the history. So is one that names
+    /// an application view the diagram has no box for (an unknown deployable, one without an architecture), once the
+    /// diagram is read.
+    /// </summary>
+    private async Task CorrectAddressAsync()
+    {
+        if (Database && !ShowsDatabase && _index is not null && Environment is { } named)
+        {
+            await DatabaseChanged.InvokeAsync(new RuntimeDatabaseChange(named, Shown: false, Step: false));
+        }
+        else if (Application is not null && ApplicationBoxes is null && _index is not null && (Current is null || _diagram is not null) && Environment is { } shown)
+        {
+            await ApplicationChanged.InvokeAsync(new RuntimeApplicationChange(shown, null, Step: false));
         }
     }
 }

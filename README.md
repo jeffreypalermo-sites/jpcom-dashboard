@@ -6,7 +6,9 @@ no server of its own and shows what a client on the internet sees.
 
 The page has two views of the same checks, switched by the tab bar under the header: **Health** (the default, the
 tiles below) and **Runtime** (the C4 deployment diagram of one environment, updated live; see "The runtime view"). The
-address keeps the choice: `#runtime` opens the runtime view, `#runtime/uat` the diagram of uat, so a link opens it.
+address keeps the choice: `#runtime` opens the runtime view, `#runtime/uat` the diagram of uat, so a link opens it
+(`#runtime/uat/database`: the tables of uat's database, see "The database view"; `#runtime/uat/app/ui`: the
+assemblies of ui as it runs in uat, see "The application view").
 The header's controls (pause, interval, probe, check now) and its summary apply to both views: one set of checks, two
 renderings.
 
@@ -366,7 +368,7 @@ diagram in place:
 | Dependency (a box outside the subscription) | The browser does not call it; the entry of the web apps' detailed health check that the system names for it says its state. "Reachable" (healthy) when that entry is Healthy on a web app that passes its health check, with the entry's own words as the line ("Chat client is not configured"), or "westus3 reports it degraded" when another web app says otherwise; "Degraded" or "Unhealthy" (drawn as unhealthy) with the entry's words when no web app reaches it; and neutral with the reason otherwise: "Not known" (no web app answers the detailed health check, or it has no entry of that name), "Not confirmed" (the entry is healthy only on a web app that fails its own health check), "Not probed" (the system names no entry for it, or the probe is Liveness, which reads no entries). |
 | Web app to a dependency | Green from the web app that serves, dotted from the others, like the line to the database. |
 | Links | Where the topology has a link (see "Links"): a web app's badge (Live Metrics), its name (the web app in the portal), its version (the release in Octopus Deploy, or else the commit of its build), its requests (Performance) and its errors (Failures); the Front Door endpoint's and the database's name; the numbers on the arrows (Performance, the dependency calls, the requests in Logs). They are real `a` elements: underlined, in the order of the keyboard, each with a title that says where it goes. |
-| A box | Every box leads to what it stands for: its name is a link, and a click anywhere else on the box opens the same address in a new tab (see "Links", "Every box of the runtime view"). The frames too: the subscription, a resource group, the Front Door profile, a plan, a region. A click on a link inside a box (a badge, a number, the mark of a deployment) is that link's own. The box shows the pointer and lights up under it. |
+| A box | Every box leads to what it stands for: its name is a link, and a click anywhere else on the box opens the same address in a new tab (see "Links", "Every box of the runtime view"). The frames too: the subscription, a resource group, the Front Door profile, a plan, a region. A click on a link inside a box (a badge, a number, the mark of a deployment) is that link's own. The box shows the pointer and lights up under it. Some boxes lead into the page instead: the database's, where the deployment recorded its schema (see "The database view"), and a web app's or a container app's, where the manifest names its deployable's `architecture` (see "The application view"). |
 | Static site | The static site that serves the page says "This page"; another environment's, which the page does not ask, says what Resource Health said of it, or "Not probed" in a diagram from before the ids. |
 | Container app | The page's own probe of it, once a minute while it shows the diagram (see "The container apps of the system"): "Probing" and "Waking" (drawn as being checked), "Healthy", "Unhealthy", "Responding" (drawn as healthy: it answered, and the page cannot read its health) and "Not responding" (drawn as unreachable), with the HTTP status and latency, or "answered · 85 ms" where the page could not read the answer. Under its host name, for an app `system.json` declares, in words and without a colour, what the pipeline's hourly health report last found there and how long ago ("hourly: healthy, 40 min ago"; "no recent hourly check" when no report of the last two hours asked it), and of the reports of 24 hours and 7 days that asked it, how many found it healthy ("24 h: 23 of 24 · 7 d: 160 of 168"). The tooltip says what the page asked and when, and that the hourly lines are history, not monitoring. An app without a public address says what Resource Health said of it. |
 | Resource | What Azure Resource Health last said of the resources the box stands for, in words and without a colour: "Available", "Degraded", "Unavailable", "Provisioned" (Resource Health does not cover its type: the provisioning state succeeded) or "Not known", and "Resource Health, 40 min ago" (grey after two hours); a box of several says the most urgent word and the count of each ("2 available · 1 provisioned, 40 min ago"). See "Resource Health". |
@@ -386,6 +388,106 @@ own build"); then the legend.
 
 A deployment from before the runtime view has no `runtime/`: the tab then says that the diagram is not available for
 this deployment, and the health view works as before.
+
+### The database view
+
+Where the deployment recorded the schema of an environment's database, the database's box in the runtime diagram
+leads into the page: a click anywhere on the box that is on none of its links zooms into it and shows the database
+view in the diagram's place. The diagram scales up around the box and fades, as the fleet's wall zooms into a system;
+a viewer who asked for less motion gets the view at once. The box takes the keyboard too: it is a stop after its name
+link, named "Database sqldb-cmdemo1-tdd: open its tables", and Enter or Space opens it. Its name is still the link to
+the database in the Azure portal. The address is `#runtime/<environment>/database`, so a link opens the view; an
+address that names an environment without the files shows that environment's diagram. "Back to the runtime diagram",
+Escape and the browser's Back zoom out again.
+
+The view shows:
+
+| Part | What it shows |
+|---|---|
+| Heading | The database's name and the environment. |
+| "Schema read 2 h ago (at the environment's last deployment)" | When the deployment read the schema (`readAt`). Once a newer live file is read, the line has that file's time (`generated`) and no parenthesis. The tooltip has the moments in full. |
+| "The diagram draws the first 40 tables." | Only for a database with more tables than the diagram draws (`truncated`, `drawn`). |
+| The diagram | The tables with their columns and row counts and the references between them, as PlantUML drew them, at its actual size on a white sheet. It scrolls in both directions inside its own frame. |
+| Row counts | The count the deployment drew, replaced by the live file's where that file is there and has the table. |
+| "The schema changed since this diagram was drawn: deploy the dashboard again." | Only when the live file names other tables than the diagram: one was added or removed. A diagram of the first tables lacks tables by design; there only a drawn table that is gone counts. |
+| "Tables as a list" | The same as a table for a screen reader and for searching: table, columns, rows. From the live file when it is there, and then also every column with its type, whether it takes null, and its key in words; else from the manifest. |
+
+The deployment writes the view's files into `runtime/`, and names them in the environment's entry of
+`runtime/index.json`:
+
+| File | Content |
+|---|---|
+| `runtime/index.json`, `environments[].database` | `{ "svg": "tdd.database.svg", "manifest": "tdd.database.json" }`: two plain file names in `runtime/`. Optional. Anything else is read as absent. |
+| `runtime/<env>.database.svg` | The tables, rendered by PlantUML. Each table is a `g` of class `entity` whose `data-qualified-name` the manifest names. One `text` of it holds exactly the row count: "1,234 rows" or "1 row", with the invariant culture's separators and a no-break space where the space is. |
+| `runtime/<env>.database.json` | The manifest: `environment`, `database`, `readAt`, `source` (the live file's address), `truncated`, `drawn`, and `tables`, each with `alias`, `qualifiedName`, `schema`, `name`, `rows` and `columns` (how many). Required: `environment`, `database`, and of every table `alias`, `qualifiedName` and `name`. Unknown fields are ignored. |
+| The live file, at `source` | On another origin, written by the system's own pipeline: `generated`, and `tables`, each with `schema`, `name`, `rows` and `columns` (`name`, `type`, `nullable`, `key`: empty, `pk`, `fk` or `pk,fk`). A table of it is the drawn one with the alias `t_<schema>_<name>`, every character outside `A-Z`, `a-z`, `0-9` and `_` replaced by `_`. |
+
+The page reads the live file with its ordinary check rounds, only while the database view is shown and the page is
+neither paused nor hidden, and never more often than once a minute. `source` must be an absolute https address. A live
+file that is absent, refused or broken is no error: the view keeps what it shows.
+
+Its limits:
+
+- The diagram is as old as the environment's last deployment of the dashboard. A table or a column added since shows
+  after the dashboard is deployed again; only the row counts and the list follow the live file.
+- The page is public. So are the table names, the column names, their types and the row counts of every environment
+  that has the view. No row of data is read.
+- A system switches the view off in `system.json`, with `"databaseView": false` on the system object. The deployment
+  then writes none of these files.
+- Without the files nothing changes: the database's box leads to the Azure portal, as every box does.
+
+### The application view
+
+Where the manifest of the runtime diagram names the `architecture` of a deployable, the boxes of that deployable's
+web apps and container apps lead into the page, as the database's box does: a click anywhere on the box that is on
+none of its links zooms into it and shows the application view in the diagram's place. The same zoom plays, and a
+viewer who asked for less motion gets the view at once. The box is a stop of the keyboard after its name link, named
+"Application ui: open its assemblies", and Enter or Space opens it. Its name is still the link to the app in the
+Azure portal, and its badge, its version, its numbers and the mark of a deployment keep their own links. The primary
+and the standby web app of one deployable open the same view. The address is
+`#runtime/<environment>/app/<deployable>`, so a link opens the view; a deployable's name is letters, digits, `-` and
+`_`, and an address that names another one, an unknown deployable or one without an `architecture` shows the
+environment's diagram. "Back to the runtime diagram", Escape and the browser's Back zoom out again.
+
+The view shows:
+
+| Part | What it shows |
+|---|---|
+| Heading | "Application", the deployable's name and the environment. |
+| "Version 1.0.42, as it runs" | The version a node of the deployable reported at its version path. When its nodes run different versions it is the primary's, else the first one known. |
+| "Version 1.0.42, as pinned" | No node reported a version (a container app has no version path): the version the environment pins for the deployable (`versions.json`, or the deployable's own `pinUrl`). |
+| "The version of ui is not known yet." | Neither is known. Nothing is asked for. |
+| "container image, process: dotnet Ui.Server.dll" | What the artifact is and how it starts (`kind`, `process`), where the file says so. |
+| The diagram | The assemblies of that version and what references what, as the repository drew them: `<version>.svg`, shown as an image at its actual size on a white sheet. It scrolls in both directions inside its own frame. Its text for a screen reader counts the assemblies and names the entry one. |
+| "The diagram and the list show only a part of the assemblies." | Only for a file that says `truncated`. |
+| "No architecture diagram of ui 1.0.42 yet: its repository publishes one with each release." | The file of that version answered 404. |
+| "The architecture diagram of ui 1.0.42 could not be read." | Any other failure: no answer, another status, a file that is no JSON object. |
+| "Assemblies as a list" | The same as a table for a screen reader and for searching: the assembly (the entry one has the word "entry"), the assemblies it references, and its NuGet packages as "name version". |
+
+The files are not the dashboard's. The repository of the application publishes them, one pair per released version,
+and the page reads them from there:
+
+| File | Content |
+|---|---|
+| `runtime/<env>.json`, `nodes[].architecture` | `https://raw.githubusercontent.com/<org>/<app-repository>/architecture/<deployable>`: where the pairs are. Optional, on a node of kind `webapp` or `containerapp` only, and only an absolute https address without a query. Anything else is read as absent. |
+| `<architecture>/<version>.json` | `kind`, `process`, `entry` (the entry assembly; empty for an artifact that is not .NET), `truncated`, and `assemblies`, each with `name`, `entry`, `references` (names) and `packages` (`name`, `version`). Every part is optional, unknown fields are ignored, and every word is shown as text. |
+| `<architecture>/<version>.svg` | The diagram, drawn by PlantUML. The page shows it in an `img` element and never inserts it into the page: an image runs no script. |
+
+The page asks for the JSON file once when the view opens, and again only when the version changes. A check round asks
+nothing: the files of a version never change. It asks for the image only after the JSON file answered. A version
+names a file only when it is one to forty of letters, digits, `.`, `_`, `+` and `-`; the page asks for no other.
+
+Its limits:
+
+- An application gets a diagram with its first release after its repository has the kit's workflow "Architecture".
+  A version released before that has none, and the view says so in one line.
+- The repository must be public: the page holds no credential, and a private repository answers 404.
+- A container that is not .NET has no assemblies: the view shows its process alone.
+- The page is public, and so are the files: the names of the assemblies, and the names and versions of the NuGet
+  packages of every released version.
+- A system switches the view off in `system.json`, with `"applicationView": false` on the system object. The
+  deployment then leaves `architecture` out of the manifest, and the boxes behave as before: a click opens the app in
+  the Azure portal.
 
 ### The files: `runtime/`
 
@@ -467,6 +569,9 @@ The manifest maps each element's alias to what the browser knows, so the page ne
   have `links`, a map of one key to an https address: where the box leads when the topology has no link for it (see
   "Links", "Every box of the runtime view"). Both are optional: a manifest from before them is drawn as before, and
   anything in `links` that is no https address is left out.
+- **A deployable's architecture**: a node of kind `webapp` or `containerapp` may have `architecture`, the https
+  address under which its deployable's repository publishes the diagram of every released version; the box then
+  zooms into the application view (see "The application view"). Optional: without it the box is as before.
 - **Addresses**: `url` is the address the page checks (web app, Front Door endpoint: the same as in `topology.json`,
   which is how a node finds its checks) or, for a static site, the dashboard's address where the deployment knows it
   (its own environment's); `null` for the database, which the browser cannot probe, for a Front Door endpoint that
@@ -738,6 +843,8 @@ destination asks for a sign-in: the page holds no credential and calls none of t
 | `deployables[].links` | `frontDoor` | The Front Door profile in the Azure portal. | The Front Door endpoint's name. |
 | | `logs` | A Logs query: the requests of the app's role, by five minutes and instance. | "Requests in Logs" in the versions line; the number on the browser to Front Door arrow. |
 | `environments[].links` | `applicationInsights`, `applicationMap`, `database`, `resourceGroup` | The environment's Application Insights, its application map, its database, its resource group. | The links at the end of the environment's heading and under the runtime diagram; the database's name in the diagram. |
+| `runtime/index.json`, `environments[].database` | (no key: the two files of the database view) | The database view of the environment, in the page itself (`#runtime/<environment>/database`; see "The database view"). | The database's box in the runtime diagram, anywhere but on its links. Its name still leads to the database in the Azure portal. |
+| `runtime/<env>.json`, `nodes[].architecture` | (no key: where the deployable's repository publishes its diagrams) | The application view of the deployable, in the page itself (`#runtime/<environment>/app/<deployable>`; see "The application view"). | The box of a web app or a container app in the runtime diagram, anywhere but on its links. Its name still leads to the app in the Azure portal. |
 | `cluster.links` | `portal` | The AKS cluster in the Azure portal. | "AKS cluster in the Azure portal" in the cluster view's "AKS service" card. |
 | | `workloads` | The cluster's workloads in the Azure portal. | "Workloads in the Azure portal" next to the cluster view's "Pods". |
 
@@ -755,6 +862,16 @@ container app's address changes when the app moves (a placement), and the link i
 deployed again. A dashboard's deployment reads the stacks of the other environments as its own tier's deploy
 identity, so the dashboard of one tier shows no link for an environment of the other tier (seen on cmdemo1,
 2026-10-10: the prod dashboard had no link for tdd and uat); its log says so in one line per link it left out. The capability check of the topology (CAP-075) compares nodes and does not look at pages.
+
+### A node that is a container app of the system
+
+An application that brings its own runtime reports its nodes, and the groups of the system may hold the same thing
+as a resource: a container app at a node's address. The diagram draws it once, as the node: where the application
+put it, with its line from the public address. Its box says "node of web: container app <name>", its manifest node
+names the resource in `names`, has the resource's id in `ids` and leads to it in the Azure portal (`links.portal`)
+as well as to itself. The page probes the node as before, so its state is live. The resource is no second box, in that
+diagram or in "In no environment" of another one: the environment that recorded the node is the one it is in,
+whatever its tag says. The match is the host of the two addresses, nothing else.
 
 ### The container apps of the system
 
@@ -996,7 +1113,8 @@ the entries of a detailed health check (`HealthDetail`, `HealthDetailText`),
 the delivery facts (`DeliveryReport`, `DeliveryText`) with the hourly health reports (`HealthReports`,
 `AvailabilityText`) and what they found for each container app (`ContainerAppReports`, `HourlyCheckText`), the cost (`CostReport`, `CostText`), the deployments in flight (`DeploymentsReport`,
 `DeploymentMark`, `DeploymentText`) and the links (`LinkSet`, `LinkText`). The runtime view's logic is in `src/Dashboard/Runtime`: reading `runtime/`
-(`RuntimeManifestParser`, `RuntimeLoader`), the update of the diagram (`RuntimePayloadBuilder`) and the view in the
+(`RuntimeManifestParser`, `RuntimeLoader`), the update of the diagram (`RuntimePayloadBuilder`), the database view
+(`DatabaseParser`, `DatabaseText`), the application view (`ApplicationParser`, `ApplicationText`) and the view in the
 address (`ViewAddress`). The cluster view's logic is in `src/Dashboard/Cluster`: the two files (`ClusterStatus`,
 `AksService`) and their reading (`ClusterReader`, `ClusterMonitor`), the states (`PodRules`, `ClusterAssessment`), the
 grouping and the sums (`ClusterGroups`, `ClusterTotals`), the words and units (`ClusterText`) and the events

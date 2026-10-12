@@ -26,6 +26,13 @@
 // The same in words are the tile's last lines, the activity lines: their tone is their kind (waiting, deploying,
 // queued, frozen, freeze, deployed, failed, canceled) and gives them their icon; like every line they are drawn only
 // while the slot holds them, so a diagram whose slots have no rows for them shows the dot alone.
+//
+// Some boxes lead into the page instead of out of it (zoomable): the database's, where the deployment recorded its
+// schema, and a web app's or a container app's, where the manifest names its deployable's architecture. A click
+// anywhere on such a box that is on none of its links, or Enter or Space while it has the focus, zooms into the box
+// (the diagram scales up around it and fades) and then tells the page which box it was (OpenBox), which shows the
+// database view or the application view; zoomOut plays the same backwards when the page shows the diagram again.
+// The box's name stays the link to the Azure portal.
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 // How far "Fit to width" scales the diagram down before it scrolls sideways instead.
@@ -247,21 +254,67 @@ function linkName(group, link, key) {
   a.querySelector('title').textContent = link.title;
 }
 
-// A click on a box goes where its name goes, in a new tab as the name's link does. A click on a link inside the box
-// (the name itself, the badge, a number, the mark of a deployment, an address PlantUML drew) is that link's own and
-// is left alone; so is the click that ends a selection of text.
+// Zooming into a box and back out, as the fleet's wall zooms into a system: the diagram scales up around the box and
+// fades. Nothing moves for a viewer who asked for less motion.
+const ZOOM_MS = 450;
+const ZOOM_EASING = 'cubic-bezier(.6, 0, .2, 1)';
+const ZOOMING = 'runtime__canvas--zooming';
+const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// The page's object per host element: its OpenBox(alias) shows the view the box leads into.
+const pages = new WeakMap();
+
+function zoomFrames(host, rect) {
+  const base = host.getBoundingClientRect();
+  const scale = Math.min(8, Math.max(1.5, window.innerWidth / Math.max(rect.width, 1), window.innerHeight / Math.max(rect.height, 1)));
+  const at = `${rect.left + rect.width / 2 - base.left}px ${rect.top + rect.height / 2 - base.top}px`;
+  return [{ transformOrigin: at, transform: 'scale(1)', opacity: 1 }, { transformOrigin: at, transform: `scale(${scale})`, opacity: 0 }];
+}
+
+// The diagram stays as the zoom left it (scaled up, not seen) until the page hides it; zoomOut takes that back.
+function zoomIn(group) {
+  const host = group.ownerSVGElement && group.ownerSVGElement.parentElement;
+  const page = host && pages.get(host);
+  if (!page || host.getAnimations().length > 0) return;
+  const open = () => page.invokeMethodAsync('OpenBox', group.dataset.rtAlias).catch(() => {});
+  if (still()) {
+    open();
+    return;
+  }
+  host.parentElement.classList.add(ZOOMING);
+  host.animate(zoomFrames(host, group.getBoundingClientRect()), { duration: ZOOM_MS, easing: ZOOM_EASING, fill: 'both' })
+    .finished.then(open, () => {});
+}
+
+// A click on a box goes where its name goes, in a new tab as the name's link does; a click on a box that can be
+// zoomed into zooms. A click on a link inside the box (the name itself, the badge, a number, the mark of
+// a deployment, an address PlantUML drew) is that link's own and is left alone; so is the click that ends a selection
+// of text.
 function openBox(event) {
   const target = event.target;
   if (event.defaultPrevented || event.button !== 0 || !target || !target.closest) return;
   if (target.closest('a')) return;
-  const group = target.closest('g.rt-linked');
+  const group = target.closest('g.rt-zoom, g.rt-linked');
   if (!group) return;
+  const selection = window.getSelection && window.getSelection();
+  if (selection && !selection.isCollapsed && group.contains(selection.anchorNode)) return;
+  if (group.classList.contains('rt-zoom')) {
+    zoomIn(group);
+    return;
+  }
   const name = [...group.children].find(child => child.localName === 'a' && child.classList.contains('rt-name-link'));
   const href = name && name.getAttribute('href');
   if (!href) return;
-  const selection = window.getSelection && window.getSelection();
-  if (selection && !selection.isCollapsed && group.contains(selection.anchorNode)) return;
   window.open(href, '_blank', 'noopener');
+}
+
+// Enter or Space on a box that can be zoomed into: a key pressed on a link inside it is that link's own.
+function pressBox(event) {
+  const group = event.target;
+  if (event.defaultPrevented || !group || !group.classList || !group.classList.contains('rt-zoom')) return;
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  zoomIn(group);
 }
 
 const LINE_ICON = {
@@ -422,17 +475,25 @@ function drawEdge(group, mark) {
   }
 }
 
-// Inserts the diagram into the host element. Returns null, or why it cannot be shown.
-export function mount(host, svgText) {
+// A diagram of the deployment as an element of this page; null for text that is no SVG. The database view reads its
+// diagram the same way (js/database.js).
+export function readSvg(svgText) {
   const parsed = new DOMParser().parseFromString(svgText, 'image/svg+xml');
   const root = parsed.documentElement;
-  if (!root || root.localName !== 'svg' || parsed.getElementsByTagName('parsererror').length > 0) {
+  if (!root || root.localName !== 'svg' || parsed.getElementsByTagName('parsererror').length > 0) return null;
+  const svg = document.importNode(root, true);
+  // PlantUML fixes the size in an inline style; the page sizes it.
+  svg.removeAttribute('style');
+  return svg;
+}
+
+// Inserts the diagram into the host element. Returns null, or why it cannot be shown.
+export function mount(host, svgText) {
+  const svg = readSvg(svgText);
+  if (!svg) {
     host.replaceChildren();
     return 'The diagram is not a valid SVG.';
   }
-  const svg = document.importNode(root, true);
-  // PlantUML fixes the size in an inline style; the page sizes it (actual size, or fitted to the width).
-  svg.removeAttribute('style');
   svg.classList.add('runtime-svg');
   // Fitted to the width, it never shrinks below FIT_FLOOR of its size: the tiles' words (11.5 px) stay above 8 px,
   // and a narrower window scrolls instead.
@@ -486,8 +547,48 @@ export function mount(host, svgText) {
     takeSlot(group);
   }
   svg.addEventListener('click', openBox);
+  svg.addEventListener('keydown', pressBox);
   host.replaceChildren(svg);
   return null;
+}
+
+// Makes the boxes of the nodes named (aliases[i], with the accessible name labels[i]) ways into the page: each takes
+// the keyboard as a button with its name, and page.OpenBox(alias) is called once the zoom into it has played.
+// Called after every mount: a diagram just inserted has no such box.
+export function zoomable(host, aliases, labels, page) {
+  pages.delete(host);
+  const svg = host.querySelector('svg.runtime-svg');
+  if (!svg) return;
+  const wanted = new Map(aliases.map((alias, index) => [alias, labels[index]]));
+  for (const group of svg.querySelectorAll('g.rt-node')) {
+    const label = wanted.get(group.dataset.rtAlias);
+    if (label === undefined) continue;
+    group.classList.add('rt-zoom');
+    group.setAttribute('tabindex', '0');
+    group.setAttribute('role', 'button');
+    group.setAttribute('aria-label', label);
+    pages.set(host, page);
+  }
+}
+
+// The page shows the diagram again after the view a box led into: the zoom plays backwards, out of that box (the
+// node of the alias), which gets the focus back. Returns at once; the diagram is updated while it plays.
+export function zoomOut(host, alias) {
+  for (const animation of host.getAnimations()) animation.cancel();
+  const canvas = host.parentElement;
+  const group = [...host.querySelectorAll('g.rt-zoom')].find(node => node.dataset.rtAlias === alias);
+  if (!group || still()) {
+    canvas.classList.remove(ZOOMING);
+    if (group) group.focus({ preventScroll: true });
+    return;
+  }
+  canvas.classList.add(ZOOMING);
+  const animation = host.animate(zoomFrames(host, group.getBoundingClientRect()), { duration: ZOOM_MS, easing: ZOOM_EASING, direction: 'reverse', fill: 'both' });
+  animation.finished.then(() => {
+    animation.cancel();
+    canvas.classList.remove(ZOOMING);
+  }, () => {});
+  group.focus({ preventScroll: true });
 }
 
 // Applies one payload (JSON text). Returns what the payload names and the diagram lacks.
@@ -534,6 +635,15 @@ export function update(host, json) {
     if (again) again.focus({ preventScroll: true });
   }
   return missing;
+}
+
+// "Back to the runtime diagram" of a view a box led into: the view shrinks and fades before the page shows the
+// diagram, which then zooms out. Resolves when it has played; at once for a viewer who asked for less motion.
+export function leaveView(section) {
+  if (still()) return Promise.resolve();
+  return section.animate(
+    [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(0.94)', opacity: 0 }],
+    { duration: 200, easing: ZOOM_EASING, fill: 'forwards' }).finished.then(() => {}, () => {});
 }
 
 export function clear(host) {

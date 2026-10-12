@@ -23,6 +23,30 @@ public class ViewAddressTests
         Assert.Equal(new ViewAddress(view, environment), ViewAddress.Parse(hash));
     }
 
+    [Theory]
+    [InlineData("runtime/uat/database", "uat", true)]
+    [InlineData("#runtime/uat/database/", "uat", true)]
+    [InlineData("Runtime/uat/Database", "uat", true)]
+    [InlineData("runtime/uat/tables", "uat/tables", false)]
+    [InlineData("runtime/database", "database", false)]
+    [InlineData("runtime//database", "database", false)]
+    public void TheHashNamesTheDatabaseViewOfAnEnvironment(string hash, string environment, bool database)
+    {
+        Assert.Equal(new ViewAddress(DashboardView.Runtime, environment, database), ViewAddress.Parse(hash));
+    }
+
+    [Fact]
+    public void TheDatabaseViewWritesTheHashThatOpensIt()
+    {
+        var address = new ViewAddress(DashboardView.Runtime, "uat", Database: true);
+
+        Assert.Equal("runtime/uat/database", address.ToHash());
+        Assert.Equal(address, ViewAddress.Parse(address.ToHash()));
+
+        // Without an environment there is no database to show.
+        Assert.Equal("runtime", new ViewAddress(DashboardView.Runtime, null, Database: true).ToHash());
+    }
+
     [Fact]
     public void AViewWritesTheHashThatOpensIt()
     {

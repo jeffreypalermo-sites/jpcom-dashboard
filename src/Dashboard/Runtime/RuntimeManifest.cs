@@ -11,7 +11,16 @@ public sealed record RuntimeIndex(IReadOnlyList<RuntimeIndexEntry> Environments,
 /// <param name="Name">The environment's name, as in <c>topology.json</c>.</param>
 /// <param name="Manifest">The manifest's file, relative to <c>runtime/</c>.</param>
 /// <param name="Svg">The diagram's file, relative to <c>runtime/</c>.</param>
-public sealed record RuntimeIndexEntry(string Name, string Manifest, string Svg);
+/// <param name="Database">
+/// The files of the environment's database view; null where the deployment recorded no schema (the database's box
+/// then only leads to the Azure portal).
+/// </param>
+public sealed record RuntimeIndexEntry(string Name, string Manifest, string Svg, RuntimeDatabaseFiles? Database = null);
+
+/// <summary>The two files of an environment's database view, relative to <c>runtime/</c>.</summary>
+/// <param name="Svg">The diagram of the tables.</param>
+/// <param name="Manifest">Which drawn table is which (<see cref="DatabaseManifest"/>).</param>
+public sealed record RuntimeDatabaseFiles(string Svg, string Manifest);
 
 public enum RuntimeNodeKind
 {
@@ -111,6 +120,11 @@ public sealed record RuntimeManifest(
 /// The Azure resource ids the box stands for, from the resource groups' listing, by which the page finds what Resource
 /// Health said of them; null in a manifest from before the ids, and where the listing has none.
 /// </param>
+/// <param name="Architecture">
+/// For a web app or a container app: where the repository of its deployable publishes the diagram of every released
+/// version (<c>&lt;address&gt;/&lt;version&gt;.json</c> and <c>.svg</c>, on another origin); the box then leads into
+/// the application view. Null without one, and for anything but an absolute https address.
+/// </param>
 public sealed record RuntimeNode(
     string Alias,
     RuntimeNodeKind Kind,
@@ -124,7 +138,8 @@ public sealed record RuntimeNode(
     string? DependencyKind = null,
     Health.LinkSet? Links = null,
     string? HealthPath = null,
-    IReadOnlyList<string>? Ids = null);
+    IReadOnlyList<string>? Ids = null,
+    Uri? Architecture = null);
 
 /// <param name="Alias">The region boundary's alias.</param>
 /// <param name="Name">The Azure region.</param>

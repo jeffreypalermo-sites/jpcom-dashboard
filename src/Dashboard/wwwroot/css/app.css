@@ -1748,6 +1748,130 @@ main {
 .runtime-legend .rt-frame { stroke-width: 1.5px !important; }
 .runtime-legend .rt-edge-line { stroke: #0085ca; }
 
+/* ---------- Database view ---------- */
+
+/* In the runtime diagram: a box that leads into the page (the database's into the database view, a web app's or a
+   container app's into the application view). It takes the keyboard, so its focus ring is the links' yellow; the
+   pointer says that a click zooms. */
+.runtime-svg .rt-node.rt-zoom { cursor: zoom-in; }
+.runtime-svg .rt-node.rt-zoom:hover > .rt-box,
+.runtime-svg .rt-node.rt-zoom:focus-visible > .rt-box { filter: brightness(1.25); }
+.runtime-svg .rt-node.rt-zoom:focus-visible { outline: 3px solid #eecb1a; outline-offset: 3px; }
+
+/* While the zoom plays, the diagram grows beyond its frame: the frame cuts it off instead of scrolling. */
+.runtime__canvas--zooming {
+  overflow: hidden;
+}
+
+/* The application view (below) is laid out as the database view is: its rules are these. */
+.database,
+.application {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  transform-origin: 50% 10rem;
+}
+
+.database__header,
+.application__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.database__header h3,
+.application__header h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.database__note,
+.application__note {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 0.9rem;
+}
+
+/* The live file names other tables than the diagram: the words say it, and the rule at the side marks it. */
+.database__changed {
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  border-left: 4px solid var(--serious);
+  background: var(--serious-wash);
+  font-size: 0.9rem;
+}
+
+/* The diagram at its actual size on the white sheet PlantUML drew it for, scrolling in both directions inside its own
+   frame: a schema of a hundred tables is several screens wide and high. */
+.database__canvas,
+.application__canvas {
+  max-height: 80vh;
+  margin-inline: calc(-1 * max(0px, min(50vw - 50% - 1rem, 25rem)));
+  padding: 0.5rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.database__canvas[hidden],
+.application__canvas[hidden] {
+  display: none;
+}
+
+.database__svg svg {
+  display: block;
+  max-width: none;
+}
+
+.database__list summary,
+.application__list summary {
+  cursor: pointer;
+}
+
+.database__list .table-scroll,
+.application__list .table-scroll {
+  margin-top: 0.6rem;
+}
+
+@keyframes database-in {
+  from { transform: scale(0.94); opacity: 0.35; }
+  to { transform: none; opacity: 1; }
+}
+
+/* The reader zoomed in: the view grows into place, where the viewer has not asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .database--entering,
+  .application--entering {
+    animation: database-in 0.3s cubic-bezier(0.6, 0, 0.2, 1);
+  }
+}
+
+/* ---------- Application view ---------- */
+
+/* The diagram is another site's file, shown as an image at its actual size on the white sheet it was drawn for. */
+.application__canvas img {
+  display: block;
+  max-width: none;
+}
+
+/* The entry assembly is marked with the word, not with colour alone. */
+.application__entry {
+  margin-left: 0.2rem;
+  color: var(--ink-secondary);
+  font-size: 0.85em;
+  font-weight: 400;
+}
+
+.application__list td {
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Cluster view ---------- */
 
 .cluster {
