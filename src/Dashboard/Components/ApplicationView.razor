@@ -1,0 +1,213 @@
+@implements IAsyncDisposable
+@inject RuntimeLoader Loader
+@inject IJSRuntime JS
+
+@* The application view: the assemblies of the version of one deployable that runs in one environment, in the place of
+   the runtime diagram whose box the reader zoomed into. The diagram and the list are files the deployable's own
+   repository published for that version, on another origin: the diagram is shown as an image (an image runs no
+   script), and every word of the list is rendered as text. *@
+<section class="application @(Entering ? "application--entering" : null)" aria-labelledby="application-title" @ref="_section" @onkeydown="OnKeyDownAsync">
+    <header class="application__header">
+        <button type="button" class="button" title="Back to the runtime diagram of @Environment (also Escape, and the browser's Back)"
+                @ref="_back" @onclick="LeaveAsync">Back to the runtime diagram</button>
+        <h3 id="application-title">Application @Deployable <span class="chip">@Environment</span></h3>
+    </header>
+
+    <p class="application__note" role="status" title="@ApplicationText.VersionTitle(Deployable, Environment, Version)">@ApplicationText.VersionLine(Deployable, Version)</p>
+
+    @if (Version is { } version)
+    {
+        if (!ApplicationText.IsVersion(version.Text))
+        {
+            <p class="application__note">@ApplicationText.RefusedLine(Deployable)</p>
+        }
+        else if (_read is null)
+        {
+            <p class="empty" role="status">Loading the assemblies of @Deployable @version.Text</p>
+        }
+        else if (ApplicationText.ProblemLine(Deployable, version.Text, _read.State) is { } problem)
+        {
+            <p class="application__note" role="status">@problem</p>
+        }
+        else if (_read.Architecture is { } architecture)
+        {
+            if (ApplicationText.KindLine(architecture) is { } kind)
+            {
+                <p class="application__note">@kind</p>
+            }
+
+            if (ApplicationText.TruncatedLine(architecture) is { } part)
+            {
+                <p class="application__note">@part</p>
+            }
+
+            if (_imageFailed)
+            {
+                <p class="application__note" role="status">The diagram's image could not be loaded.</p>
+            }
+            else if (ApplicationText.File(Architecture, version.Text, "svg") is { } image)
+            {
+                <div class="application__canvas" tabindex="0" role="region"
+                     aria-label="@($"Diagram of the assemblies of {Deployable}; scrolls in both directions")">
+                    <img src="@image.AbsoluteUri" alt="@ApplicationText.AltText(Deployable, version.Text, architecture)" referrerpolicy="no-referrer"
+                         @onerror="() => _imageFailed = true" />
+                </div>
+            }
+
+            if (architecture.Assemblies.Count > 0)
+            {
+                <details class="application__list">
+                    <summary>Assemblies as a list</summary>
+                    <div class="table-scroll">
+                        <table class="grid">
+                            <caption class="visually-hidden">Assemblies of @Deployable @version.Text</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Assembly</th>
+                                    <th scope="col">References</th>
+                                    <th scope="col">Packages</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var assembly in architecture.Assemblies)
+                                {
+                                    <tr>
+                                        <th scope="row" class="grid__name">
+                                            @assembly.Name
+                                            @if (assembly.Entry)
+                                            {
+                                                <span class="application__entry"> entry</span>
+                                            }
+                                        </th>
+                                        <td>@string.Join(", ", assembly.References)</td>
+                                        <td>@string.Join(", ", assembly.Packages.Select(ApplicationText.Package))</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            }
+        }
+    }
+</section>
+
+@code {
+    private readonly CancellationTokenSource _stopping = new();
+    private ApplicationRead? _read;
+    private string? _asked;
+    private bool _imageFailed;
+    private IJSObjectReference? _module;
+    private ElementReference _section;
+    private ElementReference _back;
+    private bool _leaving;
+
+    /// <summary>Where the deployable's repository publishes the files of every version: an absolute https address.</summary>
+    [Parameter, EditorRequired]
+    public Uri Architecture { get; set; } = default!;
+
+    /// <summary>The deployable's name: letters, digits, <c>-</c> and <c>_</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Deployable { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Environment { get; set; } = default!;
+
+    /// <summary>The version that runs, or else the pinned one; null while neither is known.</summary>
+    [Parameter]
+    public ApplicationVersion? Version { get; set; }
+
+    /// <summary>The reader zoomed in from the runtime diagram: the view plays its entrance and takes the focus.</summary>
+    [Parameter]
+    public bool Entering { get; set; }
+
+    /// <summary>Raised by "Back to the runtime diagram", once the view has played its exit.</summary>
+    [Parameter]
+    public EventCallback Back { get; set; }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stopping.CancelAsync();
+        if (_module is { } module)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The page is going away.
+            }
+        }
+
+        _stopping.Dispose();
+    }
+
+    /// <summary>
+    /// Every round of the page's checks renders the view again, and asks nothing: the file of a version is asked for
+    /// once, by the rule of <see cref="ApplicationRefresh"/>, and again only for another version.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        var version = Version?.Text;
+        if (!string.Equals(version, _asked, StringComparison.Ordinal) && !ApplicationText.IsVersion(version))
+        {
+            // No version, or one that names no file: what an earlier version showed is gone.
+            _asked = version;
+            _read = null;
+        }
+
+        if (!ApplicationRefresh.IsDue(_asked, version) || ApplicationText.File(Architecture, version, "json") is not { } file)
+        {
+            return;
+        }
+
+        _asked = version;
+        _read = null;
+        _imageFailed = false;
+        var read = await Loader.ReadArchitectureAsync(file, _stopping.Token);
+
+        // The version changed while the file was read: the newer read shows.
+        if (string.Equals(_asked, version, StringComparison.Ordinal))
+        {
+            _read = read;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (Entering)
+            {
+                await _back.FocusAsync(preventScroll: true);
+            }
+
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/runtime.js");
+        }
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs pressed)
+    {
+        if (pressed.Key == "Escape")
+        {
+            await LeaveAsync();
+        }
+    }
+
+    private async Task LeaveAsync()
+    {
+        if (_leaving)
+        {
+            return;
+        }
+
+        _leaving = true;
+        if (_module is { } module)
+        {
+            await module.InvokeVoidAsync("leaveView", _section);
+        }
+
+        await Back.InvokeAsync();
+    }
+}
