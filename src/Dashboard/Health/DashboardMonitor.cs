@@ -228,10 +228,7 @@ public sealed class DashboardMonitor
                 // The serving decision is compared once per round, when every node has its result: in the middle of a
                 // round it would mix this round's answers with the last one's.
                 var assessment = deployable.Assess();
-                if (EventDetector.Serving(deployable.LastServing, assessment, environment.Name, deployable.Info.Name, now) is { } change)
-                {
-                    Events.Add(change);
-                }
+                Events.AddRange(EventDetector.ServingChanges(deployable.LastServing, assessment, environment.Name, deployable.Info.Name, now));
 
                 deployable.RecordServing(assessment);
             }

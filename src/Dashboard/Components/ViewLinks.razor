@@ -1,0 +1,19 @@
+@* The links in the heading row of a view a box of the runtime diagram led into: plain links that leave the page, in a
+   new tab, as the environment's resource links are. Nothing where the view has none. *@
+@if (Links.Count > 0)
+{
+    <p class="resource-links" aria-label="@Label">
+        @foreach (var link in Links)
+        {
+            <a href="@link.Href" target="_blank" rel="noopener" referrerpolicy="@(link.NoReferrer ? "no-referrer" : null)" title="@link.Title">@link.Text</a>
+        }
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ViewLink> Links { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = default!;
+}

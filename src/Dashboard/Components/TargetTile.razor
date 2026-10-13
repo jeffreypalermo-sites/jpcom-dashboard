@@ -209,9 +209,13 @@
     [Parameter, EditorRequired]
     public TimeZoneInfo Zone { get; set; } = default!;
 
-    /// <summary>True for the node the serving decision expects to serve the traffic.</summary>
+    /// <summary>True for a node the serving decision expects to serve the traffic.</summary>
     [Parameter]
     public bool IsExpected { get; set; }
+
+    /// <summary>True when the deployable's Front Door rotates over several primary nodes.</summary>
+    [Parameter]
+    public bool IsRotation { get; set; }
 
     /// <summary>The deployable of the tile: its project and its build say where a node's version leads.</summary>
     [Parameter]
@@ -237,6 +241,7 @@
     /// <summary>Why this node serves; a deployable's only node without a Front Door endpoint has no order to explain.</summary>
     private string ServesHelp => Deployable is { HasFrontDoor: false, Nodes.Count: 1 }
         ? "The deployable's only node, and it is healthy"
+        : IsRotation && Target.IsPrimary ? "The Front Door rotates over the healthy primary nodes"
         : "The first healthy node in priority order: primary, then standby";
 
     private Uri? StateLink => IsFrontDoor ? null : Target.Links[LinkSet.LiveMetrics];

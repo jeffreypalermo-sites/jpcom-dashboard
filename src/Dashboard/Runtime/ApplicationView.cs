@@ -297,6 +297,53 @@ public static class ApplicationText
     /// <summary>The line of a version the page asks no file for.</summary>
     public static string RefusedLine(string deployable) => $"The version of {deployable} names no file: no diagram is asked for.";
 
+    /// <summary>
+    /// The links of the view's heading row: where the names of the deployable's boxes led before the boxes zoomed.
+    /// Per box its own address (<c>links.site</c>, else <c>url</c>) and, where it has one, its page in the Azure
+    /// portal (<c>links.portal</c> of its node in the topology, else of the manifest). One box: "Open the app" and
+    /// "Open in the Azure portal"; several: each link names its box.
+    /// </summary>
+    /// <param name="boxes">The deployable's boxes, as <see cref="Boxes(RuntimeManifest, string?)"/> orders them.</param>
+    /// <param name="environment">The monitor's environment of the diagram; null when the topology has none.</param>
+    public static IReadOnlyList<ViewLink> Links(IReadOnlyList<RuntimeNode> boxes, EnvironmentStatus? environment)
+    {
+        ArgumentNullException.ThrowIfNull(boxes);
+        var checkedNodes = environment?.Deployables.SelectMany(deployable => deployable.Nodes).ToList() ?? [];
+        var links = new List<ViewLink>();
+        foreach (var box in boxes)
+        {
+            if ((box.Links?[RuntimeBoxLink.Site] ?? box.Url) is { } site && site.Scheme == Uri.UriSchemeHttps)
+            {
+                links.Add(new ViewLink(
+                    boxes.Count == 1 ? "Open the app" : $"Open {box.Name}",
+                    site.AbsoluteUri,
+                    $"{box.Name}: {site.Host}, as a browser opens it{RuntimeBoxLink.NewTabSuffix}"));
+            }
+
+            var topology = box.Url is null ? null : checkedNodes.FirstOrDefault(node => node.Url == box.Url)?.Links[LinkSet.Portal];
+            if ((topology ?? box.Links?[LinkSet.Portal]) is { } portal)
+            {
+                links.Add(new ViewLink(
+                    boxes.Count == 1 ? "Open in the Azure portal" : $"{box.Name} in the Azure portal",
+                    portal.AbsoluteUri,
+                    LinkText.Portal($"{box.Name} in the Azure portal")));
+            }
+        }
+
+        return links;
+    }
+
+    /// <summary>"Open the diagram at full size": the image's own address, for a diagram the view fitted to its frame.</summary>
+    public static ViewLink DiagramLink(Uri image, string deployable, string version)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        return new ViewLink(
+            "Open the diagram at full size",
+            image.AbsoluteUri,
+            $"The diagram of {deployable} {version} as its repository published it{RuntimeBoxLink.NewTabSuffix}",
+            NoReferrer: true);
+    }
+
     /// <summary>A package as the list names it: <c>Serilog 4.0.1</c>.</summary>
     public static string Package(ApplicationPackage package)
     {

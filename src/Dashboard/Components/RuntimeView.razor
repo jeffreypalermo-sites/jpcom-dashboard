@@ -7,7 +7,8 @@
    deployment recorded the schema of the environment's database, the database's box zooms into the database view,
    which is shown here in the diagram's place (#runtime/<environment>/database). Where the manifest names the
    architecture of a web app's or a container app's deployable, that box zooms into the application view the same way
-   (#runtime/<environment>/app/<deployable>). *@
+   (#runtime/<environment>/app/<deployable>). The whole of such a box zooms, its name too: the link its name was is
+   in the heading row of the view. *@
 <section class="runtime" aria-labelledby="runtime-title">
     <header class="runtime__header">
         <h2 id="runtime-title">Runtime@(Current is { } shown ? $": {shown.Name}" : string.Empty)</h2>
@@ -75,13 +76,13 @@
     {
         @if (DatabaseEntry is { Database: { } files } zoomed)
         {
-            <DatabaseView @key="zoomed.Name" Files="files" Environment="@zoomed.Name" Active="Active" Entering="_entering"
+            <DatabaseView @key="zoomed.Name" Files="files" Environment="@zoomed.Name" Active="Active" Entering="_entering" Links="DatabaseLinks"
                           Back="LeaveDatabaseAsync" Zone="Zone" Now="Now" />
         }
         else if (ApplicationBoxes is { Count: > 0 } boxes && Current is { } inside)
         {
             <ApplicationView @key="@($"{inside.Name}/{boxes[0].Deployable}")" Architecture="boxes[0].Architecture!" Deployable="@boxes[0].Deployable"
-                             Environment="@inside.Name" Version="ApplicationText.Version(boxes, Shown)" Entering="_entering"
+                             Environment="@inside.Name" Version="ApplicationText.Version(boxes, Shown)" Links="ApplicationText.Links(boxes, Shown)" Entering="_entering"
                              Back="LeaveApplicationAsync" />
         }
         else if (_diagram is { IsValid: false } broken)
@@ -197,6 +198,9 @@
     private bool _zoomed;
     private string? _zoomedBox;
 
+    // The boxes of the mounted diagram that zoom: their names are no links.
+    private HashSet<string> _zoomable = new(StringComparer.Ordinal);
+
     /// <summary>The monitor of the page: the same checks the health view shows.</summary>
     [Parameter, EditorRequired]
     public DashboardMonitor Monitor { get; set; } = default!;
@@ -274,6 +278,11 @@
         && ApplicationText.Boxes(manifest, deployable) is { Count: > 0 } boxes
             ? boxes
             : null;
+
+    /// <summary>The link the name of the database's box was, for the database view; none while the diagram is not read.</summary>
+    private IReadOnlyList<ViewLink> DatabaseLinks => _diagram is { IsValid: true, Manifest: { } manifest } && DatabaseText.Box(manifest) is { } box
+        ? DatabaseText.Links(box, Shown?.Info.Links)
+        : [];
 
     /// <summary>A view a box led into is shown in the diagram's place.</summary>
     private bool Zoomed => ShowsDatabase || ApplicationBoxes is not null;
@@ -379,6 +388,7 @@
             _mountProblem = await _module.InvokeAsync<string?>("mount", _host, diagram.Svg);
             _mounted = diagram;
             _lastPayload = null;
+            _zoomable.Clear();
             if (_mountProblem is not null)
             {
                 StateHasChanged();
@@ -388,12 +398,8 @@
                 // The database's box leads into the database view where the deployment wrote that view's files; a
                 // box of a deployable into its application view where the manifest names its architecture.
                 var recorded = _index?.Index?.Environments.Any(entry => entry.Database is not null && string.Equals(entry.Name, diagram.Environment, StringComparison.Ordinal)) ?? false;
-                var boxes = ApplicationText.Boxes(diagram.Manifest!).Select(box => (box.Alias, Label: ApplicationText.BoxLabel(box))).ToList();
-                if (recorded && DatabaseText.Box(diagram.Manifest!) is { } database)
-                {
-                    boxes.Insert(0, (database.Alias, DatabaseText.BoxLabel(database)));
-                }
-
+                var boxes = RuntimeZoom.Boxes(diagram.Manifest!, recorded);
+                _zoomable = boxes.Select(box => box.Alias).ToHashSet(StringComparer.Ordinal);
                 _self ??= DotNetObjectReference.Create(this);
                 await _module.InvokeVoidAsync("zoomable", _host, boxes.Select(box => box.Alias).ToArray(), boxes.Select(box => box.Label).ToArray(), _self);
             }
@@ -425,7 +431,7 @@
 
         var environment = Shown;
         var shown = diagram.Manifest!.Environment;
-        var payload = RuntimePayloadBuilder.Build(
+        var payload = RuntimeZoom.WithoutNameLinks(RuntimePayloadBuilder.Build(
             diagram.Manifest!,
             environment,
             Page,
@@ -435,7 +441,7 @@
             Monitor.Delivery,
             Now,
             Monitor.ContainerAppStatusOf,
-            Monitor.ResourceHealth).ToJson();
+            Monitor.ResourceHealth), _zoomable).ToJson();
         if (payload == _lastPayload)
         {
             return;

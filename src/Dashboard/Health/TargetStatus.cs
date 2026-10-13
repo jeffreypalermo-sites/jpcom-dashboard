@@ -175,10 +175,21 @@ public sealed class DeployableStatus
     /// <summary>The serving decision, and the tile of the node it expects to serve the traffic (if any).</summary>
     public ServingAssessment Assess(out TargetStatus? expected)
     {
+        var assessment = AssessServing(out IReadOnlyList<TargetStatus> serving);
+        expected = serving.Count > 0 ? serving[0] : null;
+        return assessment;
+    }
+
+    /// <summary>
+    /// The serving decision, and the tiles of the nodes it expects to serve the traffic: every healthy primary of a
+    /// rotation, and otherwise one node or none.
+    /// </summary>
+    public ServingAssessment AssessServing(out IReadOnlyList<TargetStatus> serving)
+    {
         var healths = Nodes.Select(node => node.ToNodeHealth()).ToList();
         var assessment = ServingAssessment.Assess(healths, FrontDoor?.State);
-        var index = healths.FindIndex(health => ReferenceEquals(health, assessment.Expected));
-        expected = index >= 0 ? Nodes[index] : null;
+        var expected = assessment.Serving;
+        serving = [.. Nodes.Where((_, index) => expected.Any(health => ReferenceEquals(health, healths[index])))];
         return assessment;
     }
 }
