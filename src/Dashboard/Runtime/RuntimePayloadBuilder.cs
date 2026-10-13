@@ -40,7 +40,8 @@ public static class RuntimePayloadBuilder
     /// <summary>How many characters of a health check's own words fit the line of a dependency's tile.</summary>
     public const int DescriptionLength = 36;
 
-    private sealed record Entry(DeployableStatus Deployable, TargetStatus Target, ServingAssessment Assessment, TargetStatus? Expected);
+    /// <param name="Serves">True for a node the serving decision expects to serve: one node, or every healthy primary of a rotation.</param>
+    private sealed record Entry(DeployableStatus Deployable, TargetStatus Target, ServingAssessment Assessment, bool Serves);
 
     /// <param name="manifest">The environment's manifest.</param>
     /// <param name="environment">The monitor's environment of the same name; null when the topology has none.</param>
@@ -242,8 +243,8 @@ public static class RuntimePayloadBuilder
 
         foreach (var deployable in environment.Deployables)
         {
-            var assessment = deployable.Assess(out var expected);
-            entries.AddRange(deployable.Targets.Select(target => new Entry(deployable, target, assessment, expected)));
+            var assessment = deployable.AssessServing(out IReadOnlyList<TargetStatus> serving);
+            entries.AddRange(deployable.Targets.Select(target => new Entry(deployable, target, assessment, serving.Contains(target))));
         }
 
         return entries;
@@ -575,7 +576,7 @@ public static class RuntimePayloadBuilder
             lines.AddRange(TelemetryLines(node, target, telemetry));
         }
 
-        lines.Add(entry.Assessment.OnlyNode is null ? RoleLine(target, entry.Expected) : SingleNodeLine(target, entry.Expected));
+        lines.Add(entry.Assessment.OnlyNode is null ? RoleLine(target, entry.Serves) : SingleNodeLine(target, entry.Serves));
 
         // Last, so a diagram from before this line (a slot of seven lines) loses it and nothing else.
         if (target.HealthDetail is { } detail)
@@ -616,10 +617,10 @@ public static class RuntimePayloadBuilder
     };
 
     /// <summary>A node's role and whether the deployable's traffic goes through it.</summary>
-    private static RuntimeTileLine RoleLine(TargetStatus target, TargetStatus? expected)
+    private static RuntimeTileLine RoleLine(TargetStatus target, bool serves)
     {
         var role = target.Role ?? (target.IsPrimary ? NodeInfo.PrimaryRole : NodeInfo.StandbyRole);
-        return ReferenceEquals(target, expected)
+        return serves
             ? new RuntimeTileLine($"{role}: serves traffic", "serving")
             : target.State switch
             {
@@ -632,8 +633,8 @@ public static class RuntimePayloadBuilder
     /// <summary>
     /// The same line for the only node of a deployable without a Front Door endpoint: no role, since nothing stands by.
     /// </summary>
-    private static RuntimeTileLine SingleNodeLine(TargetStatus target, TargetStatus? expected) =>
-        ReferenceEquals(target, expected) ? new RuntimeTileLine("serves traffic", "serving")
+    private static RuntimeTileLine SingleNodeLine(TargetStatus target, bool serves) =>
+        serves ? new RuntimeTileLine("serves traffic", "serving")
         : target.State == HealthState.Pending ? new RuntimeTileLine("checking", "muted")
         : new RuntimeTileLine("not serving", "plain");
 
@@ -705,6 +706,11 @@ public static class RuntimePayloadBuilder
         var lines = new List<RuntimeTileLine> { VersionLine(entry.Target, null) };
         lines.Add(assessment.State switch
         {
+            ServingState.Primary when assessment.Rotation is { } rotation => new RuntimeTileLine(
+                assessment.Serving.Count == rotation.Count
+                    ? string.Create(CultureInfo.InvariantCulture, $"rotates over {rotation.Count} regions")
+                    : string.Create(CultureInfo.InvariantCulture, $"rotates over {assessment.Serving.Count} of {rotation.Count} regions"),
+                "plain"),
             ServingState.Primary => new RuntimeTileLine($"routes to {assessment.Expected!.Label} (priority 1)", "plain"),
             ServingState.FailedOver => new RuntimeTileLine($"routes to {assessment.Expected!.Label} (failed over)", "serving"),
             ServingState.Down => new RuntimeTileLine("no healthy origin", "plain"),
@@ -845,7 +851,7 @@ public static class RuntimePayloadBuilder
 
     private static RuntimeRegionMark Region(string alias, List<Entry> apps)
     {
-        if (apps.Any(entry => ReferenceEquals(entry.Target, entry.Expected)))
+        if (apps.Any(entry => entry.Serves))
         {
             return new RuntimeRegionMark(alias, "serving", "serving traffic");
         }
@@ -868,8 +874,9 @@ public static class RuntimePayloadBuilder
         {
             case RuntimeEdgeKind.Origin:
             {
-                var role = edge.Priority == 1
-                    ? "first, while healthy"
+                // In a rotation the origins of the primary nodes share the traffic: none of them is the first.
+                var role = to is { Assessment.IsRotation: true, Target.IsPrimary: true } ? "in the rotation, while healthy"
+                    : edge.Priority == 1 ? "first, while healthy"
                     : "when priority 1 is down";
                 var state = to is null ? Neutral : Carries(to);
                 var telemetry = to?.Target.Telemetry;
@@ -1006,7 +1013,7 @@ public static class RuntimePayloadBuilder
 
     /// <summary>Whether the traffic of a node's deployable goes through this node, by the serving decision.</summary>
     private static string Carries(Entry entry) =>
-        ReferenceEquals(entry.Target, entry.Expected) ? "active"
+        entry.Serves ? "active"
         : entry.Target.State == HealthState.Healthy ? "idle"
         : entry.Target.State == HealthState.Pending ? Checking
         : "down";

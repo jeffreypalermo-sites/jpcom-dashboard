@@ -29,10 +29,11 @@
 //
 // Some boxes lead into the page instead of out of it (zoomable): the database's, where the deployment recorded its
 // schema, and a web app's or a container app's, where the manifest names its deployable's architecture. A click
-// anywhere on such a box that is on none of its links, or Enter or Space while it has the focus, zooms into the box
+// anywhere on such a box, its name too, that is on none of its links, or Enter or Space while it has the focus, zooms into the box
 // (the diagram scales up around it and fades) and then tells the page which box it was (OpenBox), which shows the
 // database view or the application view; zoomOut plays the same backwards when the page shows the diagram again.
-// The box's name stays the link to the Azure portal.
+// Such a box is one control: its name is plain text and zooms like the rest of it (the view has the link the name
+// was), while its badge, its version, its numbers and the mark of a deployment stay links.
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 // How far "Fit to width" scales the diagram down before it scrolls sideways instead.
@@ -235,8 +236,10 @@ function row(layer, centre, baseline, line, cls, iconKind, size, key) {
 }
 
 // The name of a node, a region or a frame, which PlantUML drew, as a link (or as plain text again when the payload
-// has no link for it). The group is marked: a box with a name link is one a click opens (openBox).
+// has no link for it). The group is marked: a box with a name link is one a click opens (openBox). A box that can
+// be zoomed into never gets one: a button with a link nested in it would be two controls.
 function linkName(group, link, key) {
+  if (group.classList.contains('rt-zoom')) link = null;
   let a = [...group.children].find(child => child.localName === 'a' && child.classList.contains('rt-name-link'));
   group.classList.toggle('rt-linked', Boolean(link));
   if (!link) {
@@ -287,8 +290,8 @@ function zoomIn(group) {
 }
 
 // A click on a box goes where its name goes, in a new tab as the name's link does; a click on a box that can be
-// zoomed into zooms. A click on a link inside the box (the name itself, the badge, a number, the mark of
-// a deployment, an address PlantUML drew) is that link's own and is left alone; so is the click that ends a selection
+// zoomed into zooms, on its name too, which is no link there. A click on a link inside the box (the name of a box
+// without a view, the badge, a number, the mark of a deployment, an address PlantUML drew) is that link's own and is left alone; so is the click that ends a selection
 // of text.
 function openBox(event) {
   const target = event.target;
@@ -553,7 +556,8 @@ export function mount(host, svgText) {
 }
 
 // Makes the boxes of the nodes named (aliases[i], with the accessible name labels[i]) ways into the page: each takes
-// the keyboard as a button with its name, and page.OpenBox(alias) is called once the zoom into it has played.
+// the keyboard as a button with its name, and page.OpenBox(alias) is called once the zoom into it has played. The
+// name of such a box is no link (linkName): one it already had is taken away.
 // Called after every mount: a diagram just inserted has no such box.
 export function zoomable(host, aliases, labels, page) {
   pages.delete(host);
@@ -564,6 +568,7 @@ export function zoomable(host, aliases, labels, page) {
     const label = wanted.get(group.dataset.rtAlias);
     if (label === undefined) continue;
     group.classList.add('rt-zoom');
+    linkName(group, null);
     group.setAttribute('tabindex', '0');
     group.setAttribute('role', 'button');
     group.setAttribute('aria-label', label);

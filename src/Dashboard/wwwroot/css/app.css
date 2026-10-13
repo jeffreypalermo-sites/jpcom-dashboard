@@ -1820,8 +1820,9 @@ main {
   font-size: 0.9rem;
 }
 
-/* The diagram at its actual size on the white sheet PlantUML drew it for, scrolling in both directions inside its own
-   frame: a schema of a hundred tables is several screens wide and high. */
+/* The database's diagram at its actual size on the white sheet PlantUML drew it for, scrolling in both directions
+   inside its own frame: a schema of a hundred tables is several screens wide and high. (The application's image is
+   fitted to the frame's width: "Application view", below.) */
 .database__canvas,
 .application__canvas {
   max-height: 80vh;
@@ -1868,10 +1869,16 @@ main {
 
 /* ---------- Application view ---------- */
 
-/* The diagram is another site's file, shown as an image at its actual size on the white sheet it was drawn for. */
+/* The diagram is another site's file, shown as an image on the white sheet it was drawn for: never wider than its
+   frame (its height follows), at its actual size when it is narrower. A tall one scrolls down inside the frame. */
+.application__canvas {
+  overflow-x: hidden;
+}
+
 .application__canvas img {
   display: block;
-  max-width: none;
+  max-width: 100%;
+  height: auto;
 }
 
 /* The entry assembly is marked with the word, not with colour alone. */

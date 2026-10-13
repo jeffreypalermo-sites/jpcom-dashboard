@@ -246,6 +246,26 @@ public static class DatabaseText
     }
 
     /// <summary>
+    /// The links of the view's heading row: where the name of the database's box led before the box zoomed, as "Open
+    /// in the Azure portal". That is the environment's link to its database in the topology, else the link the
+    /// deployment wrote for the node into the manifest; none without either.
+    /// </summary>
+    /// <param name="box">The database's node of the runtime diagram.</param>
+    /// <param name="environment">The links of the environment in the topology; null when it has none.</param>
+    public static IReadOnlyList<ViewLink> Links(RuntimeNode box, Health.LinkSet? environment)
+    {
+        ArgumentNullException.ThrowIfNull(box);
+        var link = RuntimeLink.To(environment?[Health.LinkSet.Database], Health.LinkText.For(Health.LinkSet.Database, box.Name)) ?? RuntimeBoxLink.Of(box);
+        if (link is null)
+        {
+            return [];
+        }
+
+        var portal = link.Title.EndsWith(Health.LinkText.PortalSuffix, StringComparison.Ordinal);
+        return [new ViewLink(portal ? "Open in the Azure portal" : $"Open {box.Name}", link.Href, link.Title)];
+    }
+
+    /// <summary>
     /// The count every drawn table shows: the live file's where it has the table with a count, else the one the
     /// deployment drew. A table neither counted is left as drawn.
     /// </summary>

@@ -1,5 +1,5 @@
 @{
-    var assessment = Deployable.Assess(out var expected);
+    var assessment = Deployable.AssessServing(out IReadOnlyList<TargetStatus> serves);
     var serving = assessment.State.ToString().ToLowerInvariant();
     var disagrees = assessment.FrontDoor == FrontDoorAgreement.Disagrees;
     var versions = Environment.AssessVersions(Deployable);
@@ -73,7 +73,7 @@
             @foreach (var target in Deployable.Targets)
             {
                 var id = $"{IdPrefix}-tile-{index++}";
-                <TargetTile @key="target" Target="target" HeadingId="@id" Zone="Zone" IsExpected="ReferenceEquals(target, expected)" Deployable="Deployable"
+                <TargetTile @key="target" Target="target" HeadingId="@id" Zone="Zone" IsExpected="serves.Contains(target)" IsRotation="assessment.IsRotation" Deployable="Deployable"
                             Deployments="deploying" DeploymentsAsOf="Monitor.Deployments?.Generated" />
             }
         </div>

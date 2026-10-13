@@ -11,6 +11,7 @@
         <button type="button" class="button" title="Back to the runtime diagram of @Environment (also Escape, and the browser's Back)"
                 @ref="_back" @onclick="LeaveAsync">Back to the runtime diagram</button>
         <h3 id="database-title">Database @(_diagram?.Manifest?.Database) <span class="chip">@Environment</span></h3>
+        <ViewLinks Links="Links" Label="@($"The database of {Environment}, outside this page")" />
     </header>
 
     @if (_diagram is null)
@@ -145,6 +146,10 @@
     /// <summary>The page checks: it is neither paused nor hidden. Only then is the live file read again.</summary>
     [Parameter]
     public bool Active { get; set; }
+
+    /// <summary>Where the name of the database's box led (<see cref="DatabaseText.Links"/>).</summary>
+    [Parameter]
+    public IReadOnlyList<ViewLink> Links { get; set; } = [];
 
     /// <summary>The reader zoomed in from the runtime diagram: the view plays its entrance and takes the focus.</summary>
     [Parameter]

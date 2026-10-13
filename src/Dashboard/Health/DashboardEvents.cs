@@ -16,7 +16,10 @@ public enum EventKind
     /// <summary>A web app reports another version: a deployment.</summary>
     Version,
 
-    /// <summary>The node expected to serve a deployable's traffic changed: a failover or a failback.</summary>
+    /// <summary>
+    /// The nodes expected to serve a deployable's traffic changed: a failover or a failback, or a node left a rotation
+    /// or is back in it.
+    /// </summary>
     Serving,
 
     /// <summary>The version pinned in Git changed.</summary>
@@ -264,6 +267,54 @@ public static class EventDetector
             ServingState.Down => Event(EventLevel.Problem, from is null ? "No healthy node: nothing can serve traffic." : $"No healthy node: {from} no longer serves, and nothing else can."),
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// The same for every deployable, as a list. A rotation (several primary nodes behind a Front Door endpoint) names
+    /// each primary node that left the rotation or is back in it, and keeps "failover" for the move from the primary
+    /// nodes to a standby; every other deployable has the one event of <see cref="Serving"/>.
+    /// </summary>
+    public static IReadOnlyList<DashboardEvent> ServingChanges(ServingAssessment? before, ServingAssessment after, string environment, string deployable, DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(after);
+        if (after.Rotation is not { } rotation)
+        {
+            return Serving(before, after, environment, deployable, at) is { } change ? [change] : [];
+        }
+
+        var known = before is not null && before.State is not (ServingState.Pending or ServingState.NoNodes);
+        if (after.State is ServingState.Pending or ServingState.NoNodes || !known)
+        {
+            // The first decision: a failover or nothing serving is an event, a rotation is not.
+            return after.State == ServingState.Primary || Serving(before, after, environment, deployable, at) is not { } first ? [] : [first];
+        }
+
+        DashboardEvent Event(EventLevel level, string text) => new(at, EventKind.Serving, level, environment, deployable, text);
+        var serve = string.Create(CultureInfo.InvariantCulture, $"{after.Serving.Count} of {rotation.Count} regions serve traffic");
+        switch (before!.State, after.State)
+        {
+            case (ServingState.Primary, ServingState.Primary):
+            {
+                var served = before.Serving.Select(node => node.Name).ToHashSet(StringComparer.Ordinal);
+                return [.. rotation
+                    .Where(node => served.Contains(node.Name) != (node.State == HealthState.Healthy))
+                    .Select(node => node.State == HealthState.Healthy
+                        ? Event(EventLevel.Good, $"{node.Label} is back in the rotation: {serve}.")
+                        : Event(EventLevel.Warning, $"{node.Label} left the rotation: {serve}."))];
+            }
+
+            case (ServingState.Primary, ServingState.FailedOver):
+                return [Event(EventLevel.Warning, $"Failover: the rotation → {after.Expected!.Label}. {after.FailoverDetail}")];
+            case (ServingState.Primary, ServingState.Down):
+                return [Event(EventLevel.Problem, "No healthy node: the rotation no longer serves, and nothing else can.")];
+            case (ServingState.FailedOver, ServingState.Primary):
+                return [Event(EventLevel.Good, $"Failback: {before.Expected!.Label} → the rotation. {serve}.")];
+            case (ServingState.Down, ServingState.Primary):
+                return [Event(EventLevel.Good, $"The rotation serves traffic again: {serve}.")];
+            default:
+                // Between standbys, or between a standby and nothing: the words of one primary.
+                return Serving(before, after, environment, deployable, at) is { } other ? [other] : [];
+        }
     }
 
     /// <summary>

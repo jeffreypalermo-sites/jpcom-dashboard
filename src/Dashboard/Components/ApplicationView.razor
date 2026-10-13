@@ -5,12 +5,15 @@
 @* The application view: the assemblies of the version of one deployable that runs in one environment, in the place of
    the runtime diagram whose box the reader zoomed into. The diagram and the list are files the deployable's own
    repository published for that version, on another origin: the diagram is shown as an image (an image runs no
-   script), and every word of the list is rendered as text. *@
+   script), and every word of the list is rendered as text. The image is fitted to the width of its frame; the
+   heading row has the links that leave the page: the app and its page in the Azure portal (what the names of its
+   boxes led to before the boxes zoomed), and the diagram at its full size. *@
 <section class="application @(Entering ? "application--entering" : null)" aria-labelledby="application-title" @ref="_section" @onkeydown="OnKeyDownAsync">
     <header class="application__header">
         <button type="button" class="button" title="Back to the runtime diagram of @Environment (also Escape, and the browser's Back)"
                 @ref="_back" @onclick="LeaveAsync">Back to the runtime diagram</button>
         <h3 id="application-title">Application @Deployable <span class="chip">@Environment</span></h3>
+        <ViewLinks Links="HeadingLinks" Label="@($"{Deployable} in {Environment}, outside this page")" />
     </header>
 
     <p class="application__note" role="status" title="@ApplicationText.VersionTitle(Deployable, Environment, Version)">@ApplicationText.VersionLine(Deployable, Version)</p>
@@ -45,10 +48,10 @@
             {
                 <p class="application__note" role="status">The diagram's image could not be loaded.</p>
             }
-            else if (ApplicationText.File(Architecture, version.Text, "svg") is { } image)
+            else if (Image is { } image)
             {
                 <div class="application__canvas" tabindex="0" role="region"
-                     aria-label="@($"Diagram of the assemblies of {Deployable}; scrolls in both directions")">
+                     aria-label="@($"Diagram of the assemblies of {Deployable}, fitted to the width; scrolls down when it is tall")">
                     <img src="@image.AbsoluteUri" alt="@ApplicationText.AltText(Deployable, version.Text, architecture)" referrerpolicy="no-referrer"
                          @onerror="() => _imageFailed = true" />
                 </div>
@@ -117,6 +120,10 @@
     [Parameter]
     public ApplicationVersion? Version { get; set; }
 
+    /// <summary>Where the names of the deployable's boxes led (<see cref="ApplicationText.Links"/>).</summary>
+    [Parameter]
+    public IReadOnlyList<ViewLink> Links { get; set; } = [];
+
     /// <summary>The reader zoomed in from the runtime diagram: the view plays its entrance and takes the focus.</summary>
     [Parameter]
     public bool Entering { get; set; }
@@ -124,6 +131,16 @@
     /// <summary>Raised by "Back to the runtime diagram", once the view has played its exit.</summary>
     [Parameter]
     public EventCallback Back { get; set; }
+
+    /// <summary>The diagram's image, once the file of the version was read and while the image loads; else null.</summary>
+    private Uri? Image => Version is { } version && !_imageFailed && _read is { State: ApplicationReadState.Read, Architecture: not null }
+        ? ApplicationText.File(Architecture, version.Text, "svg")
+        : null;
+
+    /// <summary>The links of the heading row: the app's, then the diagram at its full size while it is shown.</summary>
+    private IReadOnlyList<ViewLink> HeadingLinks => Image is { } image && Version is { } version
+        ? [.. Links, ApplicationText.DiagramLink(image, Deployable, version.Text)]
+        : Links;
 
     public async ValueTask DisposeAsync()
     {

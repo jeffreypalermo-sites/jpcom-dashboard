@@ -44,7 +44,8 @@ For each environment (tdd, uat, prod) and each deployable in it, the health view
 - where the topology has a link for it, every number and name leads to its place in the Azure portal or in Octopus
   Deploy; in the runtime view every box leads to what it stands for, by a click anywhere on it (see "Links");
 - which region is expected to serve the traffic, a "Failed over to <region>" banner when the primary is not healthy
-  but a standby is, and whether the Front Door endpoint agrees;
+  but a standby is, and whether the Front Door endpoint agrees; for several primary nodes behind a Front Door
+  endpoint, every healthy one ("Front Door rotates over 11 regions: all healthy");
 - the version the last deployment pinned in Git next to the versions the nodes run ("Pinned 2.4.7. In sync: all 2
   nodes run 2.4.7." or "Differs: eastus2 runs 2.4.6."), with a link to the Octopus Deploy project that deploys the
   deployable and to the history of the pins on GitHub;
@@ -190,7 +191,7 @@ topology" is pressed. The deployment writes the real file; the build does not kn
 | `nodes[].url` | yes, an absolute http(s) address | Error. |
 | `nodes[].name` | no | The host of `url`. |
 | `nodes[].region` | no | The tile is titled with the node's name. |
-| `nodes[].role` | no | `primary` for the first node of the deployable, `standby` for the others. |
+| `nodes[].role` | no | `primary` for the first node of the deployable, `standby` for the others. More than one `primary` behind a `frontDoor` is a rotation (see "Expected to serve traffic"). |
 | `nodes[].links` | no | The node's numbers and its name are plain text. Keys: `portal`, `liveMetrics`, `performance`, `failures`, `dependencies`. |
 | `cluster` | no, may be `null`; an object | No cluster view: no tab, and nothing is read (see "The cluster view"). |
 | `cluster.name` | no | The view is titled "Cluster", and the links' titles do not name the cluster. |
@@ -360,15 +361,15 @@ diagram in place:
 | Element | What it shows |
 |---|---|
 | Web app, Front Door endpoint | The box's colour and border by state (Healthy: the navy box in a green border; Unhealthy: a red wash in a dashed red border; Unreachable: the line colour in a dotted border; Checking: dashed), and a tile: the state's badge with its word, HTTP status and latency, the version, the last 30 checks. A web app also shows its version next to the pinned one ("pinned 2.4.21: in sync", "differs from pinned 2.4.21"), its own numbers where it reports them ("12 req/min · p95 85 ms" with the trend of the requests, "0 errors · 0 exceptions/min", "CPU 3.2 % · 412 MB · 2 in flight" with the trend of the CPU, "up 2 h" or "restarted 3 min ago") and its role ("primary: serves traffic", "standby: ready, no traffic"; the only node of a deployable without a Front Door endpoint has no role: "serves traffic", "not serving"), and last, where it answers a detailed health check, one small mark per entry with the summary in words ("8 checks healthy", "LlmGateway degraded", "2 of 8 checks not healthy"; see "Health checks, entry by entry"); the endpoint shows where it routes ("routes to eastus2 (failed over)") and whether it agrees with the web apps. |
-| Region of web apps | A mark with words: "serving traffic" (green frame), "standby: ready" (dashed frame), "not serving" (dashed red frame), by the same serving decision as the health view's banner. A region of the database and the static sites has a note in slate, in italics ("database: reachable; static sites: not probed"). |
-| Front Door to an origin | Solid and green while it carries the traffic, dotted grey while idle, dashed red when the origin is not healthy: a failover is the green line moving from priority 1 to priority 2. |
+| Region of web apps | A mark with words: "serving traffic" (green frame), "standby: ready" (dashed frame), "not serving" (dashed red frame), by the same serving decision as the health view's banner. In a rotation every region with a healthy primary is "serving traffic". A region of the database and the static sites has a note in slate, in italics ("database: reachable; static sites: not probed"). |
+| Front Door to an origin | Solid and green while it carries the traffic, dotted grey while idle, dashed red when the origin is not healthy: a failover is the green line moving from priority 1 to priority 2. In a rotation the line to every healthy primary is green ("in the rotation, while healthy"), and the Front Door's box says "rotates over 3 regions" or "rotates over 2 of 3 regions". |
 | Web app to the database | Green from the web app that serves, dotted from the others. |
 | Number line of a relationship | Calls per minute of the last minute, in a solid frame, as the web apps count them: browser to Front Door (the sum of its origins' requests from Front Door), Front Door to an origin (its requests from Front Door; Front Door's health probes next to the role), web app to database (the SQL commands of its requests, with the background ones next to the role, "app queries · 55 background"; all SQL commands for an app that does not tell them apart), web app to dependency (the web app's outgoing HTTP calls, `http.perMinute`, when the web app has exactly one dependency; a dash, "not counted apart", when it has more, because the app counts them as one number). Next to the number, its trend over the last checks of this page. A dashed frame with "–" where no web app reports a number (no `telemetryPath`, or an app without the endpoint). |
 | Database | The browser cannot ask the database, but a web app's health check connects to it: "Reachable" (healthy) when the health check of a web app that uses it passes, with the queries per minute its web apps' traffic causes (the background ones are in the tooltip); "Not confirmed" (neutral) when none passes, since the web app may be the cause. Where no web app tells (none this page checks uses it, or the probe is Liveness, which leaves the database alone) it says what Resource Health said of it (see "Resource Health"), or "Not probed" in a diagram from before the ids. |
 | Dependency (a box outside the subscription) | The browser does not call it; the entry of the web apps' detailed health check that the system names for it says its state. "Reachable" (healthy) when that entry is Healthy on a web app that passes its health check, with the entry's own words as the line ("Chat client is not configured"), or "westus3 reports it degraded" when another web app says otherwise; "Degraded" or "Unhealthy" (drawn as unhealthy) with the entry's words when no web app reaches it; and neutral with the reason otherwise: "Not known" (no web app answers the detailed health check, or it has no entry of that name), "Not confirmed" (the entry is healthy only on a web app that fails its own health check), "Not probed" (the system names no entry for it, or the probe is Liveness, which reads no entries). |
 | Web app to a dependency | Green from the web app that serves, dotted from the others, like the line to the database. |
-| Links | Where the topology has a link (see "Links"): a web app's badge (Live Metrics), its name (the web app in the portal), its version (the release in Octopus Deploy, or else the commit of its build), its requests (Performance) and its errors (Failures); the Front Door endpoint's and the database's name; the numbers on the arrows (Performance, the dependency calls, the requests in Logs). They are real `a` elements: underlined, in the order of the keyboard, each with a title that says where it goes. |
-| A box | Every box leads to what it stands for: its name is a link, and a click anywhere else on the box opens the same address in a new tab (see "Links", "Every box of the runtime view"). The frames too: the subscription, a resource group, the Front Door profile, a plan, a region. A click on a link inside a box (a badge, a number, the mark of a deployment) is that link's own. The box shows the pointer and lights up under it. Some boxes lead into the page instead: the database's, where the deployment recorded its schema (see "The database view"), and a web app's or a container app's, where the manifest names its deployable's `architecture` (see "The application view"). |
+| Links | Where the topology has a link (see "Links"): a web app's badge (Live Metrics), its name (the web app in the portal), its version (the release in Octopus Deploy, or else the commit of its build), its requests (Performance) and its errors (Failures); the Front Door endpoint's and the database's name; the numbers on the arrows (Performance, the dependency calls, the requests in Logs). They are real `a` elements: underlined, in the order of the keyboard, each with a title that says where it goes. The name of a box that zooms into a view is no link: the view's heading row has that link (see "A box"). |
+| A box | Every box leads to what it stands for: its name is a link, and a click anywhere else on the box opens the same address in a new tab (see "Links", "Every box of the runtime view"). The frames too: the subscription, a resource group, the Front Door profile, a plan, a region. A click on a link inside a box (a badge, a number, the mark of a deployment) is that link's own. The box shows the pointer and lights up under it. Some boxes lead into the page instead: the database's, where the deployment recorded its schema (see "The database view"), and a web app's or a container app's, where the manifest names its deployable's `architecture` (see "The application view"). The whole of such a box zooms, its name too: a click on the name opens no new tab. The name is plain text there, not a link, so the box is one control. The link the name was is in the heading row of the view. The badge, the version, the numbers and the mark of a deployment keep their links. |
 | Static site | The static site that serves the page says "This page"; another environment's, which the page does not ask, says what Resource Health said of it, or "Not probed" in a diagram from before the ids. |
 | Container app | The page's own probe of it, once a minute while it shows the diagram (see "The container apps of the system"): "Probing" and "Waking" (drawn as being checked), "Healthy", "Unhealthy", "Responding" (drawn as healthy: it answered, and the page cannot read its health) and "Not responding" (drawn as unreachable), with the HTTP status and latency, or "answered · 85 ms" where the page could not read the answer. Under its host name, for an app `system.json` declares, in words and without a colour, what the pipeline's hourly health report last found there and how long ago ("hourly: healthy, 40 min ago"; "no recent hourly check" when no report of the last two hours asked it), and of the reports of 24 hours and 7 days that asked it, how many found it healthy ("24 h: 23 of 24 · 7 d: 160 of 168"). The tooltip says what the page asked and when, and that the hourly lines are history, not monitoring. An app without a public address says what Resource Health said of it. |
 | Resource | What Azure Resource Health last said of the resources the box stands for, in words and without a colour: "Available", "Degraded", "Unavailable", "Provisioned" (Resource Health does not cover its type: the provisioning state succeeded) or "Not known", and "Resource Health, 40 min ago" (grey after two hours); a box of several says the most urgent word and the count of each ("2 available · 1 provisioned, 40 min ago"). See "Resource Health". |
@@ -395,19 +396,20 @@ this deployment, and the health view works as before.
 ### The database view
 
 Where the deployment recorded the schema of an environment's database, the database's box in the runtime diagram
-leads into the page: a click anywhere on the box that is on none of its links zooms into it and shows the database
-view in the diagram's place. The diagram scales up around the box and fades, as the fleet's wall zooms into a system;
-a viewer who asked for less motion gets the view at once. The box takes the keyboard too: it is a stop after its name
-link, named "Database sqldb-cmdemo1-tdd: open its tables", and Enter or Space opens it. Its name is still the link to
-the database in the Azure portal. The address is `#runtime/<environment>/database`, so a link opens the view; an
-address that names an environment without the files shows that environment's diagram. "Back to the runtime diagram",
-Escape and the browser's Back zoom out again.
+leads into the page: a click anywhere on the box, on its name too, zooms into it and shows the database view in the
+diagram's place. The diagram scales up around the box and fades, as the fleet's wall zooms into a system; a viewer
+who asked for less motion gets the view at once. The box takes the keyboard too: it is one stop, named "Database
+sqldb-cmdemo1-tdd: open its tables", and Enter or Space opens it. Its name is no link there: the link to the
+database in the Azure portal is in the view. The address is `#runtime/<environment>/database`, so a link opens the
+view; an address that names an environment without the files shows that environment's diagram. "Back to the runtime
+diagram", Escape and the browser's Back zoom out again.
 
 The view shows:
 
 | Part | What it shows |
 |---|---|
 | Heading | The database's name and the environment. |
+| "Open in the Azure portal" | In the heading row: the link the name of the database's box was (`environments[].links.database`, or else the link of its node in the manifest). A new tab. Absent without a link. |
 | "Schema read 2 h ago (at the environment's last deployment)" | When the deployment read the schema (`readAt`). Once a newer live file is read, the line has that file's time (`generated`) and no parenthesis. The tooltip has the moments in full. |
 | "The diagram draws the first 40 tables." | Only for a database with more tables than the diagram draws (`truncated`, `drawn`). |
 | The diagram | The tables with their columns and row counts and the references between them, as PlantUML drew them, at its actual size on a white sheet. It scrolls in both directions inside its own frame. |
@@ -437,16 +439,17 @@ Its limits:
   that has the view. No row of data is read.
 - A system switches the view off in `system.json`, with `"databaseView": false` on the system object. The deployment
   then writes none of these files.
-- Without the files nothing changes: the database's box leads to the Azure portal, as every box does.
+- Without the files nothing changes: the database's box leads to the Azure portal, as every box does, and its name
+  is its link.
 
 ### The application view
 
 Where the manifest of the runtime diagram names the `architecture` of a deployable, the boxes of that deployable's
-web apps and container apps lead into the page, as the database's box does: a click anywhere on the box that is on
-none of its links zooms into it and shows the application view in the diagram's place. The same zoom plays, and a
-viewer who asked for less motion gets the view at once. The box is a stop of the keyboard after its name link, named
-"Application ui: open its assemblies", and Enter or Space opens it. Its name is still the link to the app in the
-Azure portal, and its badge, its version, its numbers and the mark of a deployment keep their own links. The primary
+web apps and container apps lead into the page, as the database's box does: a click anywhere on the box, on its name
+too, zooms into it and shows the application view in the diagram's place. The same zoom plays, and a viewer who asked
+for less motion gets the view at once. The box is one stop of the keyboard, named "Application ui: open its
+assemblies", and Enter or Space opens it. Its name is no link there: the links to the app are in the view. Its
+badge, its version, its numbers and the mark of a deployment keep their own links. The primary
 and the standby web app of one deployable open the same view. The address is
 `#runtime/<environment>/app/<deployable>`, so a link opens the view; a deployable's name is letters, digits, `-` and
 `_`, and an address that names another one, an unknown deployable or one without an `architecture` shows the
@@ -457,11 +460,13 @@ The view shows:
 | Part | What it shows |
 |---|---|
 | Heading | "Application", the deployable's name and the environment. |
+| "Open the app", "Open in the Azure portal" | In the heading row: the links the name of the box was. The node's own address (`links.site`, or else `url`) and, where the node has `links.portal`, its page in the Azure portal. A deployable with several boxes has both per box, with the node's name: "Open app-cmdemo1-uat-ui", "app-cmdemo1-uat-ui in the Azure portal". A new tab. |
+| "Open the diagram at full size" | In the heading row, while the diagram is shown: the same `<version>.svg`, in a new tab, without a referrer. |
 | "Version 1.0.42, as it runs" | The version a node of the deployable reported at its version path. When its nodes run different versions it is the primary's, else the first one known. |
 | "Version 1.0.42, as pinned" | No node reported a version (a container app has no version path): the version the environment pins for the deployable (`versions.json`, or the deployable's own `pinUrl`). |
 | "The version of ui is not known yet." | Neither is known. Nothing is asked for. |
 | "container image, process: dotnet Ui.Server.dll" | What the artifact is and how it starts (`kind`, `process`), where the file says so. |
-| The diagram | The assemblies of that version and what references what, as the repository drew them: `<version>.svg`, shown as an image at its actual size on a white sheet. It scrolls in both directions inside its own frame. Its text for a screen reader counts the assemblies and names the entry one. |
+| The diagram | The assemblies of that version and what references what, as the repository drew them: `<version>.svg`, shown as an image on a white sheet. It is never wider than its frame, and its height follows; a narrower one has its actual size. A tall one scrolls down inside its frame. Its text for a screen reader counts the assemblies and names the entry one. |
 | "The diagram and the list show only a part of the assemblies." | Only for a file that says `truncated`. |
 | "No architecture diagram of ui 1.0.42 yet: its repository publishes one with each release." | The file of that version answered 404. |
 | "The architecture diagram of ui 1.0.42 could not be read." | Any other failure: no answer, another status, a file that is no JSON object. |
@@ -489,8 +494,8 @@ Its limits:
 - The page is public, and so are the files: the names of the assemblies, and the names and versions of the NuGet
   packages of every released version.
 - A system switches the view off in `system.json`, with `"applicationView": false` on the system object. The
-  deployment then leaves `architecture` out of the manifest, and the boxes behave as before: a click opens the app in
-  the Azure portal.
+  deployment then leaves `architecture` out of the manifest, and the boxes behave as before: the name is the link,
+  and a click opens the app in the Azure portal.
 
 ### The files: `runtime/`
 
@@ -663,7 +668,8 @@ element (new tab, `rel="noopener"`, its own `title`) and gives the focus back to
 redraws the tile. A box whose name is a link is one a click opens: the script listens once on the diagram, and a
 click that is not on a link opens the address of the name link of the box under it (`window.open`, a new tab,
 `noopener`); it adds no second link and no stop in the order of the keyboard, where the name link is the box's
-stop and Enter on it opens it. A tile's `deployment` is the mark of a deployment of the node's deployable to the shown environment:
+stop and Enter on it opens it. A box that zooms into a view gets no `nameLink`, and the script never makes its name
+a link: the box itself is the stop (`role="button"`, its own name), and a click on its name zooms. A tile's `deployment` is the mark of a deployment of the node's deployable to the shown environment:
 `state` `executing`, `queued`, `waiting` or `ended` (the dot's shape), `title` (the sentence; one line per deployment
 when the deployable has more than one, and the first gives the shape) and `link` (the task in Octopus Deploy; absent
 when the file gives no address). The script draws it in the corner of the node's slot, or of its box for a node
@@ -838,16 +844,16 @@ destination asks for a sign-in: the page holds no credential and calls none of t
 
 | Where | Key | It leads to | In the page |
 |---|---|---|---|
-| `nodes[].links` | `portal` | The web app in the Azure portal. | The web app's name. |
+| `nodes[].links` | `portal` | The web app in the Azure portal. | The web app's name; "Open in the Azure portal" in the application view where the box zooms. |
 | | `liveMetrics` | Live Metrics of the environment's Application Insights. | The tile's state badge. |
 | | `performance` | The Performance blade. | Requests per minute; the number on the Front Door to origin arrow. |
 | | `failures` | The Failures blade. | Errors, exceptions. |
 | | `dependencies` | A Logs query: the dependency calls (SQL, HTTP) of the app's role, by target. | SQL per minute; the number on the web app to database arrow. |
 | `deployables[].links` | `frontDoor` | The Front Door profile in the Azure portal. | The Front Door endpoint's name. |
 | | `logs` | A Logs query: the requests of the app's role, by five minutes and instance. | "Requests in Logs" in the versions line; the number on the browser to Front Door arrow. |
-| `environments[].links` | `applicationInsights`, `applicationMap`, `database`, `resourceGroup` | The environment's Application Insights, its application map, its database, its resource group. | The links at the end of the environment's heading and under the runtime diagram; the database's name in the diagram. |
-| `runtime/index.json`, `environments[].database` | (no key: the two files of the database view) | The database view of the environment, in the page itself (`#runtime/<environment>/database`; see "The database view"). | The database's box in the runtime diagram, anywhere but on its links. Its name still leads to the database in the Azure portal. |
-| `runtime/<env>.json`, `nodes[].architecture` | (no key: where the deployable's repository publishes its diagrams) | The application view of the deployable, in the page itself (`#runtime/<environment>/app/<deployable>`; see "The application view"). | The box of a web app or a container app in the runtime diagram, anywhere but on its links. Its name still leads to the app in the Azure portal. |
+| `environments[].links` | `applicationInsights`, `applicationMap`, `database`, `resourceGroup` | The environment's Application Insights, its application map, its database, its resource group. | The links at the end of the environment's heading and under the runtime diagram; the database's name in the diagram, or "Open in the Azure portal" in the database view where the box zooms. |
+| `runtime/index.json`, `environments[].database` | (no key: the two files of the database view) | The database view of the environment, in the page itself (`#runtime/<environment>/database`; see "The database view"). | The whole of the database's box in the runtime diagram, its name too. The link its name was is "Open in the Azure portal" in the view's heading row. |
+| `runtime/<env>.json`, `nodes[].architecture` | (no key: where the deployable's repository publishes its diagrams) | The application view of the deployable, in the page itself (`#runtime/<environment>/app/<deployable>`; see "The application view"). | The whole box of a web app or a container app in the runtime diagram, its name too, but not its other links (badge, version, numbers, mark of a deployment). The links its name was are "Open the app" and "Open in the Azure portal" in the view's heading row. |
 | `cluster.links` | `portal` | The AKS cluster in the Azure portal. | "AKS cluster in the Azure portal" in the cluster view's "AKS service" card. |
 | | `workloads` | The cluster's workloads in the Azure portal. | "Workloads in the Azure portal" next to the cluster view's "Pods". |
 
@@ -1059,6 +1065,15 @@ then the others, each in the order of the topology) and names the first healthy 
 the deployable has failed over, and the banner says to which region and why. When no node is healthy, nothing can
 serve. The Front Door endpoint agrees when it is healthy exactly when a node is; a disagreement is flagged (Front
 Door down although a node is healthy, or Front Door healthy although no node is).
+
+**A rotation.** A deployable is read as a rotation when it has a Front Door endpoint (`frontDoor`) and more than one
+node with the role `primary`: the Front Door rotates over the primary nodes, so every healthy one serves. Each of
+them carries "serves traffic", and a primary that is not healthy is "not serving". The banner counts them: "Front
+Door rotates over 11 regions: all healthy", "Front Door rotates over 10 of 11 regions: wus3 is not healthy" (it names
+up to three, then "and 2 more"), "No region is healthy". It is decided when every primary is checked. A standby in a
+rotation stands by while any primary is healthy; the first healthy standby serves only when no primary is, and that
+is the failover. The Front Door endpoint agrees when it is healthy exactly when a node that serves is. Several
+primary nodes without a Front Door endpoint are no rotation: the first healthy one is named, as above.
 
 **A single node.** A deployable without a Front Door endpoint and with exactly one node (one app at one public
 address, as in a Kubernetes cluster) is shown as a single node that serves: nothing can take over from it, so the
@@ -1331,7 +1346,7 @@ the one before (`EventDetector`); nothing comes from a server's log, and a reloa
 | Health check | An entry of a web app's detailed health check has another state than in the last answer that had entries (so a check that read none, or the probe Liveness, hides no change); at the first answer, and for an entry the answer before did not have, only when it is not healthy. With the entry's own words. Its level is the entry's new state: Healthy good news, Degraded a warning, Unhealthy a problem. An entry that is gone is no event, and neither is the same state in other words. It follows the node's own state change of the same check, which it explains. | "ui: LlmGateway Healthy → Degraded: Chat client answered slowly: 4.2 s", "ui: DataAccess Unhealthy at the first check: Database connection failed" |
 | Restart | A web app's `uptimeSeconds` went down, or (without it) its `startedAt` is later. Compared with its last reading, also across checks it did not answer. | "ui restarted, up 12 s" |
 | Deployment | A web app reports another version. Not for a Front Door endpoint, which answers for whichever node served. | "ui: 2.4.14 → 2.4.15, deployed" |
-| Serving region | At the end of a round, the node expected to serve changed: a failover, a failback, nothing serves, serves again. | "Failover: westus3 → eastus2. Primary westus3 is unreachable; eastus2 is expected to serve traffic." |
+| Serving region | At the end of a round, the node expected to serve changed: a failover, a failback, nothing serves, serves again. In a rotation, a primary that left the rotation or is back in it, one event per node; "failover" is only the move from the primaries to a standby. | "Failover: westus3 → eastus2. Primary westus3 is unreachable; eastus2 is expected to serve traffic."; "eastus2 left the rotation: 10 of 11 regions serve traffic."; "eastus2 is back in the rotation: 11 of 11 regions serve traffic."; "Failover: the rotation → japaneast. No primary node is healthy; japaneast is expected to serve traffic." |
 | Pin | The version pinned in Git changed between two readings of `versions.json`, or of the deployable's own file (`pinUrl`). | "ui: pinned 2.4.14 → 2.4.15 in Git" |
 | Traffic | The traffic button was started, or its run ended: stopped or ran out, and no answer is on its way any more. | "Traffic started: 2 requests a second for 60 s to ui at cmdemo2-uat-def456.z01.azurefd.net" |
 | Cluster | Only with `cluster` in the topology, between two readings of its files and never at the first: the status file stopped answering or answers again; the collector stopped writing (the file became stale) or writes again; a node is no longer ready or is ready again; per pod one event a round at most: its restart count rose, or else it became unhealthy, or else it is ready again; Azure's verdict on the AKS service or its power state changed. A round names ten pods and counts the rest. | "ui in cmdemo3-tdd restarted (7 restarts): CrashLoopBackOff", "Node aks-…000000 is not ready", "The cluster's status file stopped answering: no answer within 10 s", "Azure's verdict on the AKS service: Available → Degraded" |
