@@ -339,7 +339,9 @@ public static class RuntimePayloadBuilder
         ArgumentNullException.ThrowIfNull(manifest);
         return new RuntimeWatch(
             [.. manifest.Nodes.Select(ContainerTarget).OfType<ContainerAppTarget>().Distinct()],
-            manifest.Nodes.Any(node => node.Ids is { Count: > 0 }));
+            // Also where only the list of what is in no environment shows it.
+            manifest.Nodes.Any(node => node.Ids is { Count: > 0 })
+            || (manifest.Unplaced?.Any(entry => entry.Ids is { Count: > 0 }) ?? false));
     }
 
     /// <summary>The state word of a container app's probe: the colours of the other states, none of its own.</summary>

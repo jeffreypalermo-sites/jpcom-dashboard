@@ -121,6 +121,13 @@
             </p>
         }
 
+        @* Directly under the picture: the resources in no environment, as a list of one line until it is opened. A
+           manifest from before the list has none, and draws them as boxes. *@
+        @if (!Zoomed && _diagram is { IsValid: true, Manifest: { } listed })
+        {
+            <UnplacedList Rows="UnplacedText.Rows(listed, Monitor.ResourceHealth, Now, Zone)" />
+        }
+
         @* Under the diagram: what is known about the shown environment beyond its health (its resources in the Azure
            portal, what the pipeline's hourly health reports found, what it and the resources it shares cost, the code
            its deployables run, how they were delivered), and last the code of the dashboard itself.

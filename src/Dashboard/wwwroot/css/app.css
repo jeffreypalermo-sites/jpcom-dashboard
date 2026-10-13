@@ -1489,6 +1489,20 @@ main {
   font-size: 0.9rem;
 }
 
+/* Under the diagram: the resources in no environment, one line until it is opened. A list, no boxes and no colour. */
+.unplaced summary {
+  cursor: pointer;
+}
+
+.unplaced .help,
+.unplaced .table-scroll {
+  margin-top: 0.6rem;
+}
+
+.unplaced .unplaced__why {
+  white-space: normal;
+}
+
 /* Under the diagram: the shown environment's resources, code and delivery. */
 .runtime__facts {
   display: flex;

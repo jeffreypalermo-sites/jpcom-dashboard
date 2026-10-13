@@ -380,7 +380,10 @@ width. Hover a node or a line for its details.
 Above the diagram, under the title: what is being deployed to the shown environment, one line per deployment, and a
 dot on the button of every environment something is being deployed to (see "Deployments in flight").
 
-Under the diagram, for the environment it shows: the links to its resources in the Azure portal, what the pipeline's
+Directly under the diagram: the line "In no environment (n)", which opens the list of the resources that are in no
+environment (see "In no environment"). It is there only where the manifest lists some.
+
+Under it, for the environment the diagram shows: the links to its resources in the Azure portal, what the pipeline's
 hourly health reports found (see "Availability"), what it cost and what the resources it shares with the others cost
 (see "Cost"), per deployable the "Code" and "Delivery" cards of
 the health view (see "Code" and "Delivery"), and last the "Code" card of the dashboard itself (see "The dashboard's
@@ -869,8 +872,8 @@ An application that brings its own runtime reports its nodes, and the groups of 
 as a resource: a container app at a node's address. The diagram draws it once, as the node: where the application
 put it, with its line from the public address. Its box says "node of web: container app <name>", its manifest node
 names the resource in `names`, has the resource's id in `ids` and leads to it in the Azure portal (`links.portal`)
-as well as to itself. The page probes the node as before, so its state is live. The resource is no second box, in that
-diagram or in "In no environment" of another one: the environment that recorded the node is the one it is in,
+as well as to itself. The page probes the node as before, so its state is live. The resource is no second box in that
+diagram, and no row of the list "In no environment" under another one: the environment that recorded the node is the one it is in,
 whatever its tag says. The match is the host of the two addresses, nothing else.
 
 ### The container apps of the system
@@ -941,16 +944,38 @@ and places each resource by its tag: the environment's own in a frame "Supportin
 with one box per type of resource (the vault, the SQL server, Application Insights, the Log Analytics workspace, a
 storage account of `infra/own`, the managed identities as one box "Managed identity (n)" with their names, and any other
 type by the name Azure gives it); another environment's in that environment's diagram; and what no environment tag
-places (no tag, or a tag of no environment of the system) in a frame "In no environment", one box per type, group and
-tag, each saying its group and its tag or that it has none. A container app `system.json` does not declare is a node of
-kind `containerapp` without a `deployable` and without a `healthPath` (its address where it has a public one, which the
-page probes at its root), in its Container Apps environment or in "In no environment". The web apps, plans, static
+places (no tag, or a tag of no environment of the system) in no diagram: it is a list under the picture (below, "In no
+environment"). A container app `system.json` does not declare is a node of kind `containerapp` without a `deployable`
+and without a `healthPath` (its address where it has a public one, which the page probes at its root), in its
+Container Apps environment; one in no environment is a row of the list. The web apps, plans, static
 sites, the Front Door profile, the container apps and the Container Apps environment of a drawn app are not repeated,
 nor children of a resource or role assignments; in-cluster workloads are not listed. In the manifest a resource box is
-a node of kind `resource` with its `type`, `count`, `names`, `group` (and `environmentTag` in "In no environment"),
+a node of kind `resource` with its `type`, `count`, `names`, `group`,
 `ids` (the resource ids of its members), and a link to its page in the Azure portal (a group of them leads to the
 resource group). The browser cannot ask them: a box of this kind has a slot of one line under its words (200 by 46
 px, which the manifest's check asks for), where the page says what Resource Health said of its members.
+
+### In no environment
+
+The resources no environment tag places are a list under the diagram, not boxes of it. They were a frame "In no
+environment" of the picture; the frame crowded the picture and pushed it out of shape.
+
+- The manifest names them in `unplaced`: per resource its `name`, `type`, `group`, `words` (why it is in no
+  environment: "no environment tag", or "tagged zzz: no such environment"), and where known its `ids`, its `url` and
+  `links.portal` and `links.site`.
+- The list stands directly under the picture, before availability, cost and code. It is one line, "In no environment
+  (n)", until the reader opens it. Without entries there is no line.
+- Opened, it is a table, sorted by type and then by name: Resource (the name; a link to the Azure portal where the
+  manifest has one, which asks for a sign-in), Type, Resource group, Why, Health and Address (the resource's own
+  public address where it has one).
+- Health is what Resource Health last said of the entry's ids, in the words of a resource box and with its age:
+  "Available · Resource Health, 40 min ago". An entry without ids says "not read". It is words, never a colour. The
+  page reads Resource Health for the list also where no box of the diagram has ids.
+- The page reads the list tolerantly: an entry without a name is skipped, a field of the wrong type is left out, a
+  text is cut at 300 characters, the list ends at 500 entries, and an address is kept only when it is an absolute
+  https address. Nothing of it is an error. Every string is written as text.
+- An older manifest has no `unplaced`: its nodes under `sub.unplaced.` and its frame `unplaced` are drawn as before,
+  and there is no list.
 
 ### Resource Health
 
