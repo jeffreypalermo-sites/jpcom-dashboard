@@ -17,7 +17,9 @@ public sealed record RuntimeParseResult<T>(T? Value, IReadOnlyList<string> Error
 /// kinds are kept apart, not refused: a newer diagram still shows. Optional: the frames (with alias), and the
 /// <c>links</c> of a node, a region or a frame, of which only absolute https addresses are kept; a node's
 /// <c>healthPath</c> (a plain path, else left out), its <c>ids</c> (the strings of the list) and, of a web app or a
-/// container app, its <c>architecture</c> (an absolute https address, else left out).
+/// container app, its <c>architecture</c> (an absolute https address, else left out); and the manifest's
+/// <c>unplaced</c>, the resources in no environment: an entry with a name is kept, anything else of the member is
+/// left out and never an error.
 /// </summary>
 public static class RuntimeManifestParser
 {
@@ -157,7 +159,7 @@ public static class RuntimeManifestParser
 
             return errors.Count > 0 || environment is null
                 ? new RuntimeParseResult<RuntimeManifest>(null, errors)
-                : new RuntimeParseResult<RuntimeManifest>(new RuntimeManifest(environment, nodes, regions, edges, frames), []);
+                : new RuntimeParseResult<RuntimeManifest>(new RuntimeManifest(environment, nodes, regions, edges, frames, Unplaced(root)), []);
         }
     }
 
@@ -296,6 +298,66 @@ public static class RuntimeManifestParser
 
         return found.Count == 0 ? null : new Health.LinkSet(found);
     }
+
+    /// <summary>The longest text kept of an entry of <c>unplaced</c>, and the most entries.</summary>
+    public const int LongestUnplacedText = 300;
+    public const int MostUnplaced = 500;
+    private const int LongestAddress = 2000;
+
+    /// <summary>
+    /// The manifest's <c>unplaced</c>: the objects of the list that have a name, the first <see cref="MostUnplaced"/>.
+    /// A text is cut at <see cref="LongestUnplacedText"/> characters; <c>links.portal</c>, <c>links.site</c> and
+    /// <c>url</c> are kept only as absolute https addresses. Null without the member (a manifest from before it), and
+    /// where it is no list: nothing here is an error, the diagram shows all the same.
+    /// </summary>
+    private static List<RuntimeUnplaced>? Unplaced(JsonElement root)
+    {
+        if (!root.TryGetProperty("unplaced", out var array) || array.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var found = new List<RuntimeUnplaced>();
+        foreach (var element in array.EnumerateArray())
+        {
+            if (found.Count == MostUnplaced)
+            {
+                break;
+            }
+
+            if (element.ValueKind != JsonValueKind.Object || Cut(element, "name") is not { } name)
+            {
+                continue;
+            }
+
+            var links = element.TryGetProperty("links", out var map) && map.ValueKind == JsonValueKind.Object ? map : (JsonElement?)null;
+            found.Add(new RuntimeUnplaced(
+                name,
+                Cut(element, "type"),
+                Cut(element, "group"),
+                Cut(element, "words"),
+                Ids(element)?.Select(id => id.Length > LongestUnplacedText * 2 ? id[..(LongestUnplacedText * 2)] : id).ToList(),
+                links is { } portal ? Secure(portal, "portal") : null,
+                (links is { } site ? Secure(site, "site") : null) ?? Secure(element, "url")));
+        }
+
+        return found;
+    }
+
+    /// <summary>A text of an entry of <c>unplaced</c>, cut at <see cref="LongestUnplacedText"/> characters.</summary>
+    private static string? Cut(JsonElement parent, string property) =>
+        Text(parent, property) is { } text
+            ? text.Length > LongestUnplacedText ? text[..LongestUnplacedText] : text
+            : null;
+
+    /// <summary>An absolute https address without a user name, of a sensible length; anything else is null.</summary>
+    private static Uri? Secure(JsonElement parent, string property) =>
+        Text(parent, property) is { Length: <= LongestAddress } text
+        && Uri.TryCreate(text, UriKind.Absolute, out var address)
+        && address.Scheme == Uri.UriSchemeHttps
+        && address.UserInfo.Length == 0
+            ? address
+            : null;
 
     /// <summary>The longest health path kept, and the most ids of one box.</summary>
     private const int LongestPath = 200;

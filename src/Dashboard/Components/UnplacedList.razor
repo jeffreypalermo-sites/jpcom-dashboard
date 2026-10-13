@@ -1,0 +1,51 @@
+@* The resources of the system that are in no environment, under the runtime diagram: one line until the reader opens
+   it, then a table. Every word of a row is text of the manifest, written as text. The name leads to the resource in
+   the Azure portal, which asks for a sign-in; the address to the resource's own public page. *@
+@if (Rows.Count > 0)
+{
+    <details class="unplaced">
+        <summary>@UnplacedText.Summary(Rows.Count)</summary>
+        <div class="table-scroll">
+            <table class="grid">
+                <caption class="visually-hidden">Resources in no environment</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Resource</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Resource group</th>
+                        <th scope="col">Why</th>
+                        <th scope="col">Health</th>
+                        <th scope="col">Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Rows)
+                    {
+                        var entry = row.Entry;
+                        <tr>
+                            <th scope="row" class="grid__name">
+                                <DeepLink Href="entry.Portal" Title="@LinkText.Portal($"{entry.Name} in the Azure portal")">@entry.Name</DeepLink>
+                            </th>
+                            <td>@entry.Type</td>
+                            <td class="grid__name">@entry.Group</td>
+                            <td class="unplaced__why">@entry.Words</td>
+                            <td class="@(row.HealthTone == "muted" ? "grid__minor" : null)" title="@row.HealthTitle">@row.Health</td>
+                            <td>
+                                @if (entry.Site is { } site)
+                                {
+                                    <a class="deep" href="@site.AbsoluteUri" target="_blank" rel="noopener" title="@($"{entry.Name} at {site.Host} (opens in a new tab)")">@site.Host</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>
+}
+
+@code {
+    /// <summary>The rows, in their order (<see cref="UnplacedText.Rows"/>).</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<UnplacedRow> Rows { get; set; } = default!;
+}
